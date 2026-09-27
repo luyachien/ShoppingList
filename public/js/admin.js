@@ -1,4 +1,4 @@
-import { api, copyText, el, fill, toast } from './common.js';
+import { api, copyText, el, fill, initThemeToggles, toast } from './common.js';
 
 const $ = (id) => document.getElementById(id);
 const shareUrl = (slug) => `${location.origin}/l/${slug}`;
@@ -240,4 +240,5 @@ $('inspect-form').addEventListener('submit', (e) => {
   inspect($('notion-url').value.trim());
 });
 
+initThemeToggles();
 init();

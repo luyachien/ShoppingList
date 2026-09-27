@@ -65,9 +65,13 @@ export function toItem(page) {
   };
   const formula = get('total');
   const status = get('status')?.name ?? STATUS_TODO;
+  const fullName = plainText(get('name')).trim() || '（未命名）';
+  // 模板慣例：商品名稱開頭的【】為品牌
+  const brandMatch = fullName.match(/^【([^】]+)】\s*(.+)$/s);
   return {
     id: page.id,
-    name: plainText(get('name')) || '（未命名）',
+    name: brandMatch ? brandMatch[2] : fullName,
+    brand: brandMatch ? brandMatch[1].trim() : null,
     status,
     purchased: status === STATUS_DONE,
     rating: plainText(get('rating')),
@@ -79,11 +83,26 @@ export function toItem(page) {
     price: get('price') ?? null,
     total: formula?.type === 'number' ? formula.number : null,
     shop: plainText(get('shop')),
-    // 保留粗體，備註常用粗體標示重點
-    note: (get('note') ?? []).map((t) => ({ text: t.plain_text, bold: !!t.annotations?.bold })),
-    source: get('source') ?? null,
+    // 保留粗體與超連結，備註常用來標示重點與地圖連結
+    note: (get('note') ?? []).map((t) => ({
+      text: t.plain_text,
+      bold: !!t.annotations?.bold,
+      href: safeUrl(t.href),
+    })),
+    source: safeUrl(get('source')),
     images: (get('images') ?? []).map((f) => f.file?.url ?? f.external?.url).filter(Boolean),
   };
+}
+
+// 只允許 http(s) 連結，避免 javascript: 等危險網址被放進 <a href>
+function safeUrl(url) {
+  if (!url) return null;
+  try {
+    const u = new URL(url);
+    return u.protocol === 'https:' || u.protocol === 'http:' ? u.href : null;
+  } catch {
+    return null;
+  }
 }
 
 // 網站只允許寫入「狀態」與「評分」

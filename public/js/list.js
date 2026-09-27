@@ -1,14 +1,16 @@
-import { api, el, fill, storage, toast, yen } from './common.js';
+import { api, el, fill, initThemeToggles, storage, toast, yen } from './common.js';
 
 const slug = location.pathname.split('/').filter(Boolean)[1] ?? '';
 const $ = (id) => document.getElementById(id);
 const PRIORITY_RANK = { 高: 3, 中: 2, 低: 1 };
 const FILTER_KEYS = ['category', 'tags', 'people', 'priority'];
+const VIEWS = { todo: '未購買', done: '已購買', all: '全部' };
 const SORTS = {
   priority: '需要程度（高→低）',
   'price-asc': '預估單價（低→高）',
   'price-desc': '預估單價（高→低）',
   name: '商品名稱',
+  brand: '品牌',
 };
 
 const state = {
@@ -151,7 +153,7 @@ function matches(item) {
   if (f.people.size && !item.people.some((p) => f.people.has(p))) return false;
   const words = state.query.toLowerCase().split(/\s+/).filter(Boolean);
   if (words.length) {
-    const haystack = [item.name, item.shop, item.category, ...item.tags, ...item.note.map((n) => n.text)]
+    const haystack = [item.brand, item.name, item.shop, item.category, ...item.tags, ...item.note.map((n) => n.text)]
       .join(' ')
       .toLowerCase();
     if (!words.every((w) => haystack.includes(w))) return false;
@@ -171,6 +173,11 @@ function sortItems(items) {
       return sorted.sort((a, b) => priceOf(b, -Infinity) - priceOf(a, -Infinity) || byName(a, b));
     case 'name':
       return sorted.sort(byName);
+    case 'brand':
+      // 沒有品牌的排最後
+      return sorted.sort(
+        (a, b) => (a.brand ?? '￿').localeCompare(b.brand ?? '￿', 'zh-Hant') || byName(a, b),
+      );
     default:
       return sorted.sort(
         (a, b) => (PRIORITY_RANK[b.priority] ?? 0) - (PRIORITY_RANK[a.priority] ?? 0) || byName(a, b),
@@ -179,7 +186,7 @@ function sortItems(items) {
 }
 
 function activeFilterCount() {
-  return FILTER_KEYS.filter((k) => k !== 'category').reduce((n, k) => n + state.filters[k].size, 0);
+  return FILTER_KEYS.reduce((n, k) => n + state.filters[k].size, 0);
 }
 
 // ---- 繪製 ----
@@ -269,31 +276,43 @@ function renderFilterPanel() {
   const panel = $('filter-panel');
   if (panel.hidden) return;
 
+  const section = (title, ...content) =>
+    el('fieldset', { class: 'filter-group' }, el('legend', { text: title }), el('div', { class: 'chip-wrap' }, content));
+
   const group = (key, title) => {
     if (!state.options[key].length) return null;
     const set = state.filters[key];
-    return el(
-      'fieldset',
-      { class: 'filter-group' },
-      el('legend', { text: title }),
-      el(
-        'div',
-        { class: 'chip-wrap' },
-        state.options[key].map((o) =>
-          toggleChip({
-            label: o.name,
-            color: o.color,
-            pressed: set.has(o.name),
-            onClick: () => {
-              set.has(o.name) ? set.delete(o.name) : set.add(o.name);
-              savePrefs();
-              render();
-            },
-          }),
-        ),
+    return section(
+      title,
+      state.options[key].map((o) =>
+        toggleChip({
+          label: o.name,
+          color: o.color,
+          pressed: set.has(o.name),
+          onClick: () => {
+            set.has(o.name) ? set.delete(o.name) : set.add(o.name);
+            savePrefs();
+            render();
+          },
+        }),
       ),
     );
   };
+
+  const views = section(
+    '購買狀態',
+    Object.entries(VIEWS).map(([view, label]) =>
+      toggleChip({
+        label,
+        pressed: state.view === view,
+        onClick: () => {
+          state.view = view;
+          savePrefs();
+          render();
+        },
+      }),
+    ),
+  );
 
   const sortSelect = el(
     'select',
@@ -308,8 +327,11 @@ function renderFilterPanel() {
     Object.entries(SORTS).map(([value, label]) => el('option', { value, text: label, selected: value === state.sort })),
   );
 
-  fill(panel, 
+  fill(
+    panel,
     el('label', { class: 'filter-group sort-group' }, el('span', { class: 'legend', text: '排序' }), sortSelect),
+    views,
+    group('category', '種類'),
     group('tags', '購買地點（Tag）'),
     group('people', '需要的人'),
     group('priority', '需要程度'),
@@ -333,8 +355,12 @@ function renderFilterPanel() {
 
 function renderItem(item) {
   const expanded = state.expanded.has(item.id);
-  const thumb = item.images[0]
-    ? el('img', { class: 'thumb', src: item.images[0], alt: '', loading: 'lazy', onError: (e) => e.target.replaceWith(placeholder()) })
+  const thumb = item.images.length
+    ? el(
+        'button',
+        { type: 'button', class: 'thumb-btn', 'aria-label': '放大商品圖片', onClick: () => openLightbox(item.images, 0) },
+        el('img', { class: 'thumb', src: item.images[0], alt: '', loading: 'lazy', onError: (e) => e.target.replaceWith(placeholder()) }),
+      )
     : placeholder();
 
   const meta = el(
@@ -345,10 +371,10 @@ function renderItem(item) {
     item.tags.map((t) => chip(t, colorOf('tags', t), 'chip-sm')),
   );
 
-  const facts = [
+  const prices = [
     item.qty ? `× ${item.qty}` : null,
-    item.price != null ? yen(item.price) : null,
-    item.people.length ? `👤 ${item.people.join('、')}` : null,
+    item.price != null ? `單價 ${yen(item.price)}` : null,
+    item.total != null ? `總價 ${yen(item.total)}` : null,
   ].filter(Boolean);
 
   const summary = el(
@@ -362,39 +388,52 @@ function renderItem(item) {
         render();
       },
     },
-    thumb,
-    el(
-      'div',
-      { class: 'item-body' },
-      el('p', { class: 'item-name', text: item.name }),
-      meta,
-      facts.length ? el('p', { class: 'item-facts muted', text: facts.join(' · ') }) : null,
-      item.rating ? el('p', { class: 'item-rating-preview', text: `💬 ${item.rating}` }) : null,
-    ),
+    item.brand ? el('span', { class: 'item-brand', text: item.brand }) : null,
+    el('span', { class: 'item-name', text: item.name }),
+    meta,
+    prices.length ? el('span', { class: 'item-facts muted', text: prices.join(' · ') }) : null,
+    item.people.length ? el('span', { class: 'item-facts muted', text: `👤 ${item.people.join('、')}` }) : null,
+    item.rating ? el('span', { class: 'item-rating-preview', text: `💬 ${item.rating}` }) : null,
   );
+
+  const source = item.source
+    ? el(
+        'a',
+        { class: 'side-btn source-btn', href: item.source, target: '_blank', rel: 'noopener noreferrer', 'aria-label': '開啟推薦來源' },
+        el('span', { class: 'side-icon', 'aria-hidden': 'true', text: '↗' }),
+        el('span', { class: 'side-label', text: '來源' }),
+      )
+    : null;
 
   const check = el(
     'button',
     {
       type: 'button',
-      class: 'check',
+      class: 'side-btn check',
       'aria-pressed': String(item.purchased),
       'aria-label': item.purchased ? '改回未購買' : '標記為已購買',
       onClick: () => setPurchased(item, !item.purchased),
     },
-    el('span', { 'aria-hidden': 'true', text: '✓' }),
+    el('span', { class: 'check-mark', 'aria-hidden': 'true', text: '✓' }),
   );
 
   return el(
     'li',
     { class: `item${item.purchased ? ' is-done' : ''}${expanded ? ' is-open' : ''}` },
-    el('div', { class: 'item-row' }, summary, check),
+    el('div', { class: 'item-row' }, thumb, summary, source, check),
     expanded ? renderDetail(item) : null,
   );
 }
 
 function placeholder() {
   return el('div', { class: 'thumb thumb-empty', 'aria-hidden': 'true', text: '🛍️' });
+}
+
+function noteContent(note) {
+  return note.map((n) => {
+    const text = n.bold ? el('strong', { text: n.text }) : n.text;
+    return n.href ? el('a', { href: n.href, target: '_blank', rel: 'noopener noreferrer' }, text) : text;
+  });
 }
 
 function renderDetail(item) {
@@ -404,27 +443,34 @@ function renderDetail(item) {
       el(
         'div',
         { class: 'gallery' },
-        item.images.map((src) =>
-          el('a', { href: src, target: '_blank', rel: 'noopener noreferrer' }, el('img', { src, alt: '', loading: 'lazy' })),
+        item.images.map((src, i) =>
+          el(
+            'button',
+            { type: 'button', 'aria-label': `放大第 ${i + 1} 張圖片`, onClick: () => openLightbox(item.images, i) },
+            el('img', { src, alt: '', loading: 'lazy' }),
+          ),
         ),
       ),
     );
   }
   const field = (label, content) => el('div', { class: 'field' }, el('span', { class: 'field-label', text: label }), content);
   if (item.shop) rows.push(field('商店', el('span', { text: item.shop })));
-  if (item.total != null) rows.push(field('預估總價', el('span', { text: yen(item.total) })));
-  if (item.note.length) {
+  if (item.price != null || item.total != null) {
     rows.push(
-      field('備註', el('p', { class: 'note' }, item.note.map((n) => (n.bold ? el('strong', { text: n.text }) : n.text)))),
+      el(
+        'div',
+        { class: 'field-pair' },
+        item.price != null ? field('預估單價', el('span', { text: yen(item.price) })) : null,
+        item.total != null ? field('預估總價', el('span', { text: yen(item.total) })) : null,
+      ),
     );
   }
-  if (item.source) {
-    rows.push(field('推薦來源', el('a', { href: item.source, target: '_blank', rel: 'noopener noreferrer', text: '開啟連結 ↗' })));
-  }
+  if (item.note.length) rows.push(field('備註', el('p', { class: 'note' }, noteContent(item.note))));
 
   const draft = state.drafts.get(item.id) ?? item.rating;
   const save = el('button', { type: 'button', class: 'btn btn-primary btn-sm', text: '儲存評分', disabled: draft === item.rating });
   const textarea = el('textarea', {
+    id: `rating-${item.id}`,
     rows: 3,
     maxlength: 2000,
     placeholder: '使用 / 食用心得、評分、是否回購…',
@@ -435,15 +481,43 @@ function renderDetail(item) {
   });
   textarea.value = draft;
   save.addEventListener('click', () => saveRating(item, save));
-  rows.push(el('div', { class: 'rating' }, el('label', { class: 'field-label', text: '評分 / 心得' }), textarea, save));
+  rows.push(
+    el('div', { class: 'rating' }, el('label', { class: 'field-label', for: textarea.id, text: '評分 / 心得' }), textarea, save),
+  );
 
   return el('div', { class: 'item-detail' }, rows);
 }
 
 function toggleFilterPanel(open = $('filter-panel').hidden) {
   $('filter-panel').hidden = !open;
+  $('scrim').hidden = !open;
   $('filter-toggle').setAttribute('aria-expanded', String(open));
   render();
+}
+
+// ---- 圖片放大 ----
+
+const lightbox = { images: [], index: 0 };
+
+function openLightbox(images, index) {
+  lightbox.images = images;
+  lightbox.index = index;
+  showLightboxImage();
+  $('lightbox').showModal();
+}
+
+function showLightboxImage() {
+  const { images, index } = lightbox;
+  $('lightbox-img').src = images[index];
+  $('lightbox-count').textContent = `${index + 1} / ${images.length}`;
+  document.querySelector('.lightbox-nav').hidden = images.length < 2;
+}
+
+function stepLightbox(delta) {
+  const n = lightbox.images.length;
+  if (n < 2) return;
+  lightbox.index = (lightbox.index + delta + n) % n;
+  showLightboxImage();
 }
 
 // ---- 事件 ----
@@ -466,6 +540,31 @@ $('login-form').addEventListener('submit', async (e) => {
 
 $('refresh').addEventListener('click', () => loadItems({ quiet: true }));
 $('filter-toggle').addEventListener('click', () => toggleFilterPanel());
+$('scrim').addEventListener('click', () => toggleFilterPanel(false));
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !$('filter-panel').hidden) toggleFilterPanel(false);
+});
+
+const dialog = $('lightbox');
+dialog.querySelector('.lightbox-close').addEventListener('click', () => dialog.close());
+// 點圖片以外的暗色區域就關閉
+dialog.addEventListener('click', (e) => {
+  if (e.target === dialog) dialog.close();
+});
+$('lightbox-prev').addEventListener('click', () => stepLightbox(-1));
+$('lightbox-next').addEventListener('click', () => stepLightbox(1));
+dialog.addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowLeft') stepLightbox(-1);
+  if (e.key === 'ArrowRight') stepLightbox(1);
+});
+let swipeX = null;
+dialog.addEventListener('pointerdown', (e) => (swipeX = e.clientX));
+dialog.addEventListener('pointerup', (e) => {
+  if (swipeX !== null && Math.abs(e.clientX - swipeX) > 40) stepLightbox(e.clientX < swipeX ? 1 : -1);
+  swipeX = null;
+});
+
+initThemeToggles();
 
 let searchTimer;
 $('search').addEventListener('input', (e) => {
