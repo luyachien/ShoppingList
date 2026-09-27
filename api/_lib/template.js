@@ -94,6 +94,67 @@ export function toItem(page) {
   };
 }
 
+const LIMITS = { brand: 60, name: 200, shop: 200, note: 2000, source: 1000, qty: 999, price: 10_000_000 };
+
+// 驗證網站送來的新商品，轉成 Notion properties；只使用 schema 中存在的欄位與選項
+export function toCreateProperties(input, schema) {
+  const errors = [];
+  const properties = {};
+  const has = (key) => schema[FIELDS[key].prop]?.type === FIELDS[key].type;
+  const optionNames = (key) => (has(key) ? schema[FIELDS[key].prop][FIELDS[key].type].options.map((o) => o.name) : []);
+  const str = (value, key, label) => {
+    const v = typeof value === 'string' ? value.trim() : '';
+    if (v.length > LIMITS[key]) errors.push(`${label}最多 ${LIMITS[key]} 字`);
+    return v;
+  };
+  const richText = (content) => ({ rich_text: content ? [{ type: 'text', text: { content } }] : [] });
+
+  const brand = str(input.brand, 'brand', '品牌').replace(/[【】]/g, '');
+  const name = str(input.name, 'name', '商品名稱');
+  if (!name) errors.push('請輸入商品名稱');
+  const fullName = brand ? `【${brand}】${name}` : name;
+  properties[FIELDS.name.prop] = { title: [{ type: 'text', text: { content: fullName } }] };
+  properties[FIELDS.status.prop] = { status: { name: STATUS_TODO } };
+
+  for (const [key, label] of [['category', '種類'], ['priority', '需要程度']]) {
+    const v = typeof input[key] === 'string' ? input[key] : '';
+    if (!v || !has(key)) continue;
+    if (!optionNames(key).includes(v)) errors.push(`${label}「${v}」不在選項中`);
+    else properties[FIELDS[key].prop] = { select: { name: v } };
+  }
+
+  for (const [key, label] of [['tags', 'Tag'], ['people', '需要的人']]) {
+    const values = Array.isArray(input[key]) ? [...new Set(input[key].map(String))] : [];
+    if (!values.length || !has(key)) continue;
+    const invalid = values.filter((v) => !optionNames(key).includes(v));
+    if (invalid.length) errors.push(`${label}「${invalid.join('、')}」不在選項中`);
+    else properties[FIELDS[key].prop] = { multi_select: values.map((name) => ({ name })) };
+  }
+
+  for (const [key, label, integer] of [['qty', '數量', true], ['price', '預估單價', false]]) {
+    const raw = input[key];
+    if (raw === null || raw === undefined || raw === '' || !has(key)) continue;
+    const n = Number(raw);
+    if (!Number.isFinite(n) || n < 0 || n > LIMITS[key] || (integer && !Number.isInteger(n))) {
+      errors.push(`${label}格式錯誤`);
+    } else {
+      properties[FIELDS[key].prop] = { number: n };
+    }
+  }
+
+  const shop = str(input.shop, 'shop', '商店');
+  if (shop && has('shop')) properties[FIELDS.shop.prop] = richText(shop);
+  const note = str(input.note, 'note', '備註');
+  if (note && has('note')) properties[FIELDS.note.prop] = richText(note);
+  const source = str(input.source, 'source', '推薦來源');
+  if (source && has('source')) {
+    if (!safeUrl(source)) errors.push('推薦來源必須是 http:// 或 https:// 開頭的網址');
+    else properties[FIELDS.source.prop] = { url: safeUrl(source) };
+  }
+
+  return { properties, errors };
+}
+
 // 只允許 http(s) 連結，避免 javascript: 等危險網址被放進 <a href>
 function safeUrl(url) {
   if (!url) return null;

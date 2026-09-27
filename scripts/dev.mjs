@@ -19,7 +19,6 @@ const TYPES = {
 };
 
 function serveStatic(pathname, res) {
-  if (/^\/l\/[^/]+\/?$/.test(pathname)) pathname = '/list.html';
   if (pathname === '/') pathname = '/index.html';
   let file = normalize(join(PUBLIC, pathname));
   if (!file.startsWith(PUBLIC)) return notFound(res);
@@ -36,7 +35,13 @@ function notFound(res) {
 }
 
 createServer(async (req, res) => {
-  const { pathname } = new URL(req.url, 'http://localhost');
+  let { pathname } = new URL(req.url, 'http://localhost');
+  // 對應 vercel.json：/l/:slug → /api/list?action=page&slug=:slug
+  const listPage = pathname.match(/^\/l\/([^/]+)\/?$/);
+  if (listPage) {
+    req.url = `/api/list?action=page&slug=${listPage[1]}`;
+    pathname = '/api/list';
+  }
   const api = pathname.match(/^\/api\/([a-z-]+)$/);
   if (!api) return serveStatic(decodeURIComponent(pathname), res);
 

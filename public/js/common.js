@@ -138,3 +138,25 @@ export function initThemeToggles() {
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', repaint);
   repaint();
 }
+
+export function toggleChip({ label, color, pressed, onClick }) {
+  return el('button', {
+    type: 'button',
+    class: `chip chip-toggle c-${color ?? 'default'}`,
+    'aria-pressed': String(pressed),
+    text: label,
+    onClick,
+  });
+}
+
+// 底部彈出視窗（<dialog class="sheet">）：關閉按鈕與點背景關閉
+export function initSheet(dialog) {
+  for (const btn of dialog.querySelectorAll('.sheet-close')) btn.addEventListener('click', () => dialog.close());
+  // 只有點在視窗外（背景）才關閉；點到視窗本身的留白不算
+  dialog.addEventListener('click', (e) => {
+    if (e.target !== dialog) return;
+    const r = dialog.getBoundingClientRect();
+    const inside = e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
+    if (!inside) dialog.close();
+  });
+}

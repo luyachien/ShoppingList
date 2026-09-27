@@ -77,8 +77,16 @@ export async function createRecord({ name, databaseId, hash }) {
   return slug;
 }
 
-export async function updateRecord(pageId, { hash, enabled }) {
+// Notion 資料庫改名後，同步更新轉換紀錄的名稱（登入畫面與管理頁使用）
+export async function syncName(record, title) {
+  if (!title || title === record.name) return;
+  await updateRecord(record.pageId, { name: title });
+  record.name = title;
+}
+
+export async function updateRecord(pageId, { name, hash, enabled }) {
   const properties = {};
+  if (name) properties[P.name] = { title: [{ type: 'text', text: { content: name } }] };
   if (hash) properties[P.hash] = text(hash);
   if (typeof enabled === 'boolean') properties[P.enabled] = { checkbox: enabled };
   await notion(`/pages/${pageId}`, { method: 'PATCH', body: { properties } });

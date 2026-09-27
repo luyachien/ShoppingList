@@ -1,4 +1,7 @@
-import { api, el, fill, initThemeToggles, storage, toast, yen } from './common.js';
+import { api, el, fill, initThemeToggles, storage, toast, toggleChip, yen } from './common.js';
+import { initAddItem } from './add-item.js';
+import { initInstall } from './install.js';
+import { initSwitcher, rememberList } from './saved-lists.js';
 
 const slug = location.pathname.split('/').filter(Boolean)[1] ?? '';
 const $ = (id) => document.getElementById(id);
@@ -82,6 +85,7 @@ async function loadItems({ quiet = false } = {}) {
     }
     document.title = state.name;
     $('title').textContent = state.name;
+    rememberList(slug, state.name);
     show('main');
     render();
     if (quiet) toast('已同步 Notion 最新資料');
@@ -197,16 +201,6 @@ function colorOf(key, name) {
 
 function chip(label, color, extraClass = '') {
   return el('span', { class: `chip c-${color} ${extraClass}`, text: label });
-}
-
-function toggleChip({ label, color, pressed, onClick }) {
-  return el('button', {
-    type: 'button',
-    class: `chip chip-toggle c-${color ?? 'default'}`,
-    'aria-pressed': String(pressed),
-    text: label,
-    onClick,
-  });
 }
 
 function render() {
@@ -585,7 +579,22 @@ for (const btn of document.querySelectorAll('.segmented button')) {
 
 // ---- 啟動 ----
 
+function onItemCreated(item) {
+  state.items.push(item);
+  render();
+  const hidden = !matches(item);
+  toast(hidden ? `已新增「${item.name}」（目前的篩選條件下不會顯示）` : `已新增「${item.name}」`);
+}
+
 async function init() {
+  initSwitcher(slug);
+  initInstall();
+  initAddItem({
+    slug,
+    getOptions: () => state.options,
+    onCreated: onItemCreated,
+    onUnauthorized: () => showLogin(state.name),
+  });
   if (!slug) return showFatal('網址不正確');
   loadPrefs();
   try {

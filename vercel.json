@@ -2,8 +2,11 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "outputDirectory": "public",
   "cleanUrls": true,
+  "functions": {
+    "api/list.js": { "includeFiles": "public/list.html" }
+  },
   "rewrites": [
-    { "source": "/l/:slug", "destination": "/list" }
+    { "source": "/l/:slug", "destination": "/api/list?action=page&slug=:slug" }
   ],
   "headers": [
     {
@@ -13,6 +16,10 @@
         { "key": "Referrer-Policy", "value": "no-referrer" },
         { "key": "X-Frame-Options", "value": "DENY" }
       ]
+    },
+    {
+      "source": "/sw.js",
+      "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
     }
   ]
 }

@@ -6,8 +6,13 @@
   <meta name="robots" content="noindex, nofollow">
   <meta name="theme-color" content="#f7f6f3">
   <script src="/js/theme.js"></script>
+  <!-- 伺服器會把下一行換成清單名稱、預覽圖與安裝設定（api/list.js 的 sendPage） -->
   <title>購物清單</title>
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="icon" href="/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
   <link rel="stylesheet" href="/style.css">
   <script type="module" src="/js/list.js"></script>
 </head>
@@ -17,8 +22,11 @@
   </main>
 
   <main id="fatal" class="center-screen" hidden>
-    <p class="fatal-icon" aria-hidden="true">🧺</p>
-    <p id="fatal-message"></p>
+    <div class="stack">
+      <p class="fatal-icon" aria-hidden="true">🧺</p>
+      <p id="fatal-message"></p>
+      <button type="button" class="btn btn-ghost open-switcher" hidden>我的其他清單</button>
+    </div>
   </main>
 
   <main id="login" class="center-screen" hidden>
@@ -29,16 +37,20 @@
       <input id="login-password" type="password" autocomplete="current-password" placeholder="密碼" required>
       <button type="submit" class="btn btn-primary">進入清單</button>
       <p id="login-error" class="error" role="alert"></p>
+      <button type="button" class="btn btn-ghost btn-sm open-switcher" hidden>我的其他清單</button>
     </form>
   </main>
 
   <div id="main" hidden>
     <header class="topbar">
       <div class="topbar-row">
-        <div class="topbar-title">
-          <h1 id="title"></h1>
-          <p id="progress" class="muted"></p>
-        </div>
+        <button type="button" class="topbar-title open-switcher" aria-haspopup="dialog" aria-label="切換購物清單">
+          <span class="title-line"><span id="title"></span><span class="caret" aria-hidden="true">▾</span></span>
+          <span id="progress" class="muted"></span>
+        </button>
+        <button id="install" type="button" class="icon-btn" aria-label="安裝到主畫面" title="安裝到主畫面" hidden>
+          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M12 3v12m0 0-4.5-4.5M12 15l4.5-4.5M5 17v2a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-2"/></svg>
+        </button>
         <button type="button" class="icon-btn theme-toggle"></button>
         <button id="refresh" type="button" class="icon-btn" aria-label="重新整理">
           <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/></svg>
@@ -67,6 +79,10 @@
     <p id="summary" class="summary muted"></p>
     <ul id="items" class="items"></ul>
     <p id="empty" class="empty muted" hidden></p>
+
+    <button id="add-open" type="button" class="fab" aria-label="新增商品">
+      <span aria-hidden="true">＋</span> 新增商品
+    </button>
   </div>
 
   <dialog id="lightbox" class="lightbox" aria-label="商品圖片">
@@ -77,6 +93,51 @@
       <span id="lightbox-count"></span>
       <button type="button" id="lightbox-next" aria-label="下一張">›</button>
     </div>
+  </dialog>
+
+  <dialog id="switcher" class="sheet" aria-labelledby="switcher-title">
+    <div class="sheet-head">
+      <h2 id="switcher-title">我的購物清單</h2>
+      <button type="button" class="icon-btn sheet-close" aria-label="關閉">✕</button>
+    </div>
+    <p class="hint muted">這支手機開過的清單會記在這裡。</p>
+    <ul id="saved-lists" class="saved-lists"></ul>
+    <form id="add-list-form" class="stack">
+      <label class="field-label" for="add-list-url">加入其他清單</label>
+      <div class="inline-form">
+        <input id="add-list-url" type="url" inputmode="url" placeholder="貼上旅伴傳來的清單網址" required>
+        <button type="submit" class="btn btn-primary btn-sm">開啟</button>
+      </div>
+      <p id="add-list-error" class="error" role="alert"></p>
+    </form>
+  </dialog>
+
+  <dialog id="add-dialog" class="sheet sheet-tall" aria-labelledby="add-title">
+    <form id="add-form" class="stack" novalidate>
+      <div class="sheet-head">
+        <h2 id="add-title">新增商品</h2>
+        <button type="button" class="icon-btn sheet-close" aria-label="關閉">✕</button>
+      </div>
+      <div id="add-fields" class="stack"></div>
+      <p id="add-error" class="error" role="alert"></p>
+      <div class="sheet-actions">
+        <button type="button" class="btn btn-ghost sheet-close">取消</button>
+        <button type="submit" class="btn btn-primary">新增到 Notion</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="install-help" class="sheet" aria-labelledby="install-title">
+    <div class="sheet-head">
+      <h2 id="install-title">加入主畫面</h2>
+      <button type="button" class="icon-btn sheet-close" aria-label="關閉">✕</button>
+    </div>
+    <ol class="install-steps">
+      <li>點 Safari 下方（或上方）的<strong>分享</strong>按鈕 <span aria-hidden="true">⬆︎</span></li>
+      <li>往下滑，選擇<strong>「加入主畫面」</strong></li>
+      <li>點右上角<strong>「新增」</strong></li>
+    </ol>
+    <p class="hint muted">如果是用 LINE 等 App 內開啟的網頁，請先點右上角選單，選「用 Safari 開啟」。第一次從主畫面開啟時，需要再輸入一次清單密碼。</p>
   </dialog>
 </body>
 </html>

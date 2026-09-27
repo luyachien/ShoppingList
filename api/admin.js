@@ -1,8 +1,8 @@
 // 轉換器與清單管理（僅擁有者）
 import { adminLogin, adminLogout, hashPassword, isAdmin, requireAdmin, validatePassword } from './_lib/auth.js';
 import { getQuery, handler, HttpError, readJson, sendJson } from './_lib/http.js';
-import { extractNotionId, notion, plainText, queryAll, resolveDatabase } from './_lib/notion.js';
-import { createRecord, findByDatabaseId, findBySlug, listAll, publicRecord, updateRecord } from './_lib/registry.js';
+import { extractNotionId, getDatabase, notion, plainText, queryAll, resolveDatabase } from './_lib/notion.js';
+import { createRecord, findByDatabaseId, findBySlug, listAll, publicRecord, syncName, updateRecord } from './_lib/registry.js';
 import { validateSchema } from './_lib/template.js';
 
 async function inspect(url) {
@@ -49,6 +49,10 @@ export default handler(async (req, res) => {
 
   if (req.method === 'GET' && action === 'lists') {
     const records = await listAll();
+    // 同步 Notion 上改過的資料庫標題；單一清單失敗（例如資料庫被刪除）不影響其他清單
+    await Promise.allSettled(
+      records.map(async (r) => syncName(r, plainText((await getDatabase(r.databaseId)).title).trim())),
+    );
     return sendJson(res, 200, { lists: records.map(publicRecord) });
   }
 
