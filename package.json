@@ -1,0 +1,12 @@
+{
+  "name": "shopping-list",
+  "private": true,
+  "type": "module",
+  "description": "Notion 購物清單 → 手機購物網站轉換器",
+  "scripts": {
+    "dev": "node --env-file=.env.local scripts/dev.mjs"
+  },
+  "engines": {
+    "node": "22.x"
+  }
+}

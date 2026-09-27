@@ -81,7 +81,7 @@
 
 - **前端**：純 HTML + CSS + JavaScript（ES modules），不使用框架、不需要 build step
   - 篩選、排序、搜尋在前端處理（每趟清單資料量小）
-- **後端**：Vercel Serverless Functions（Node.js），使用官方 `@notionhq/client`
+- **後端**：Vercel Serverless Functions（Node.js 22），以內建 `fetch` 直接呼叫 Notion REST API（`Notion-Version: 2025-09-03`，使用 data source 端點），**零 npm 相依套件**
 - **為什麼需要後端**：Notion Token 不能出現在瀏覽器；Notion API 也不允許瀏覽器直接呼叫（CORS）；密碼驗證必須在伺服器端進行
 
 ### Notion 存取方式
@@ -116,29 +116,38 @@
 - 寫入 API 只能修改「該清單 Database 內」的頁面，且只能改「狀態」與「評分」
 - 密碼比對使用 constant-time 比較；錯誤時加入短暫延遲以減緩暴力嘗試
 
-### 目錄結構（預計）
+### 目錄結構
 
 ```
 /
 ├─ public/
 │  ├─ index.html        # 轉換器（管理頁）
 │  ├─ list.html         # 清單頁（/l/<slug> 透過 vercel.json rewrite 到這裡）
-│  ├─ js/               # 前端模組
-│  └─ style.css
+│  ├─ js/
+│  │  ├─ common.js      # fetch 包裝、DOM 建立（el / fill）、toast、localStorage
+│  │  ├─ admin.js       # 轉換器
+│  │  └─ list.js        # 清單頁
+│  ├─ style.css
+│  └─ icon.svg
 ├─ api/
-│  ├─ admin/            # 登入、轉換、清單管理
-│  ├─ lists/            # 清單登入、讀取商品、更新狀態 / 評分
-│  └─ _lib/
-│     ├─ notion.js      # Notion client 與共用查詢
+│  ├─ admin.js          # ?action=session|login|logout|lists|inspect|create|update
+│  ├─ list.js           # ?action=info|login|items|update
+│  └─ _lib/             # 底線開頭：Vercel 不會當成 API 路由
+│     ├─ http.js        # JSON 回應、讀取 body、錯誤處理
+│     ├─ notion.js      # Notion REST 呼叫、分頁、網址 → ID、頁面 → 子資料庫
 │     ├─ template.js    # 模板欄位定義、驗證、property ↔ JSON 轉換
 │     ├─ registry.js    # 轉換紀錄的讀寫
-│     └─ auth.js        # 密碼雜湊、cookie 簽章與驗證
+│     └─ auth.js        # scrypt 密碼雜湊、HMAC cookie
+├─ scripts/dev.mjs      # 本機開發伺服器（模擬 Vercel 路由與 rewrite）
 ├─ vercel.json
 ├─ .env.example
 ├─ .gitignore
 ├─ package.json
 └─ CLAUDE.md
 ```
+
+- API 函式只用 Node 原生 `req` / `res`（不依賴 Vercel 的 `res.status().json()` helper），才能同時在 Vercel 與 `scripts/dev.mjs` 執行
+- 新增 API 時優先在既有檔案加 `action`，不要增加檔案（Vercel Hobby 方案有函式數量上限）
 
 ## Coding conventions
 
@@ -199,11 +208,10 @@ node_modules/
 1. **一次性設定**（由擁有者操作，Claude 提供步驟）
    - Notion：建立 Internal Integration → 連接到「🛍️ 購物清單」與「⚙️ ShoppingList 系統設定」兩個頁面
    - Notion：「轉換紀錄」Database 已建立於「⚙️ ShoppingList 系統設定」頁面
-   - `npm install`；複製 `.env.example` 為 `.env.local` 並由擁有者填入真實值
+   - 複製 `.env.example` 為 `.env.local` 並由擁有者填入真實值（不需要 `npm install`，專案沒有相依套件）
    - 在擁有者既有的 GitHub 帳號下建立 Repository `ShoppingList`（建議設為 Private）
    - 建立 Vercel 帳號（用 GitHub 帳號登入）
-   - `npm i -g vercel`、`vercel login`、`vercel link`
-2. **本機開發**：`vercel dev`（同時提供 `public/` 與 `api/`，讀取 `.env.local`）
+2. **本機開發**：`npm run dev` → http://localhost:3000（`scripts/dev.mjs` 讀取 `.env.local`，提供 `public/`、`api/*` 與 `/l/<slug>` rewrite）
 3. **測試**：用 DevTools 手機模擬檢查版面；用一個測試用的清單 Database 驗證讀寫，避免誤改真實的行程清單
 4. **提交**：檢查 diff → commit → push 到 GitHub
 5. **部署**：GitHub Repository 連結 Vercel
