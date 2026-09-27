@@ -3,7 +3,7 @@
   "outputDirectory": "public",
   "cleanUrls": true,
   "rewrites": [
-    { "source": "/l/:slug", "destination": "/list.html" }
+    { "source": "/l/:slug", "destination": "/list" }
   ],
   "headers": [
     {
