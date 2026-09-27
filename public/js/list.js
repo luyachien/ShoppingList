@@ -86,6 +86,9 @@ async function loadItems({ quiet = false } = {}) {
     document.title = state.name;
     $('title').textContent = state.name;
     rememberList(slug, state.name);
+    const notionLink = $('open-notion');
+    notionLink.hidden = !data.notionUrl?.startsWith('https://');
+    if (!notionLink.hidden) notionLink.href = data.notionUrl;
     show('main');
     render();
     if (quiet) toast('已同步 Notion 最新資料');

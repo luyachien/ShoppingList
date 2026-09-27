@@ -112,6 +112,8 @@ export default handler(async (req, res) => {
     await syncName(record, plainText(db.title).trim()).catch((err) => console.error('syncName failed', err.code));
     return sendJson(res, 200, {
       name: record.name,
+      // 在 Notion 開啟用；能否查看由 Notion 權限決定，網站無法得知
+      notionUrl: db.url ?? null,
       options: schemaOptions(ds.properties),
       items: pages.map(toItem),
     });

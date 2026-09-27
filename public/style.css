@@ -324,7 +324,24 @@ button.topbar-title:active { background: var(--surface-2); }
   background: rgb(0 0 0 / 35%);
 }
 
-.summary { padding: 10px 16px 6px; font-size: .85rem; }
+.summary-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 16px 0 0; }
+.summary { flex: 1; min-width: 0; padding: 10px 16px 6px; font-size: .85rem; }
+.notion-link {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 0 10px;
+  margin-top: 4px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: .8rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+.notion-link:active { background: var(--surface-2); }
 
 /* ---- 商品 ---- */
 

@@ -197,15 +197,26 @@ function renderListCard(list) {
       el('label', { class: 'switch' }, toggle, el('span', { class: 'switch-label', text: '啟用' })),
     ),
     shareBox(list.slug),
-    el('button', {
-      type: 'button',
-      class: 'btn btn-ghost btn-sm',
-      text: '修改密碼',
-      onClick: () => {
-        pwForm.hidden = !pwForm.hidden;
-        if (!pwForm.hidden) pwInput.focus();
-      },
-    }),
+    el(
+      'div',
+      { class: 'btn-row' },
+      el('button', {
+        type: 'button',
+        class: 'btn btn-ghost btn-sm',
+        text: '修改密碼',
+        onClick: () => {
+          pwForm.hidden = !pwForm.hidden;
+          if (!pwForm.hidden) pwInput.focus();
+        },
+      }),
+      el('a', {
+        class: 'btn btn-ghost btn-sm',
+        href: `https://www.notion.so/${list.databaseId.replace(/-/g, '')}`,
+        target: '_blank',
+        rel: 'noopener noreferrer',
+        text: '在 Notion 開啟 ↗',
+      }),
+    ),
     pwForm,
   );
   return card;
