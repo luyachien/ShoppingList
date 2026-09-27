@@ -558,10 +558,18 @@ button.topbar-title:active { background: var(--surface-2); }
   background: #2f2f2f;
   color: #fff;
   box-shadow: 0 6px 24px rgb(0 0 0 / 25%);
+  /* 只靠位移藏不住（離底部的距離比位移還大），所以同時淡出並取消可點擊 */
+  opacity: 0;
+  visibility: hidden;
   transform: translate(-50%, 150%);
-  transition: transform .25s ease;
+  transition: transform .25s ease, opacity .25s ease, visibility 0s linear .25s;
 }
-.toast.show { transform: translate(-50%, 0); }
+.toast.show {
+  opacity: 1;
+  visibility: visible;
+  transform: translate(-50%, 0);
+  transition: transform .25s ease, opacity .25s ease;
+}
 .toast span { flex: 1; font-size: .92rem; }
 .toast-action {
   flex: none;
