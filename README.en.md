@@ -2,8 +2,8 @@
 
 [繁體中文](README.md) | **English**
 
-Turn the shopping list you planned in Notion into a **mobile-friendly shopping website** in one click, and share it with your travel companions behind a password.
-In the store you can see what's still left to buy, tick items off, and jot down how you liked them — every change syncs straight back to Notion.
+Turn the shopping list you planned in Notion into a **mobile-friendly shopping website** in one click, and share it with your travel companions behind a password.  
+In the store you can see what's still left to buy, tick items off, jot down how you liked them, and add items you want to buy — every change syncs straight back to your Notion database.
 
 ![Travel Shopping List](public/og-image.png)
 
@@ -39,13 +39,13 @@ Everyone deploys **their own copy** with **their own** Notion integration, so da
 
 ### 1. Duplicate the Notion template
 
-Open the [Travel Shopping List template](https://yingyuccu.notion.site/Travel-Shopping-List-Template-3e83d0b85b8b81aeb192dcd37fa05ad4) and click **Duplicate** to copy it into your workspace.
+Open the [Travel Shopping List template](https://about-travel.notion.site/Travel-Shopping-List-Template-b50c74f1eb1c8356b81f01a9bb2ae0fd) and click **Duplicate** to copy it into your workspace.
 It contains two databases:
 
 - **購物清單** (shopping list): duplicate it for each trip
 - **轉換紀錄** (registry): managed by the website — leave it empty
 
-> ⚠️ Don't rename properties or change their types; the website depends on them. You can freely add or edit options (e.g. Tag locations, 需要的人).
+> ⚠️ Don't rename properties or change their types; the website depends on them. You can freely add or edit options (e.g. Tag locations, "需要的人").
 
 ### 2. Create a Notion integration
 
@@ -59,7 +59,7 @@ It contains two databases:
 
 ### 3. Find the registry database ID
 
-Open the 轉換紀錄 database as a full page and copy its URL. The 32-character string before `?` is the database ID:
+Open the "轉換紀錄" database as a full page and copy its URL. The 32-character string before `?` is the database ID:
 
 ```
 https://www.notion.so/xxxx/0123456789abcdef0123456789abcdef?v=...
@@ -77,7 +77,7 @@ Click the button (you can sign up for Vercel with your GitHub account), fill in 
 | Name | Description |
 |---|---|
 | `NOTION_TOKEN` | The integration secret from step 2 |
-| `NOTION_REGISTRY_DATABASE_ID` | The 轉換紀錄 database ID from step 3 |
+| `NOTION_REGISTRY_DATABASE_ID` | The "轉換紀錄" database ID from step 3 |
 | `ADMIN_PASSWORD` | Password for the converter — keep it to yourself |
 | `SESSION_SECRET` | A random string of at least 32 characters used to sign logins |
 
@@ -94,26 +94,27 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ### 5. Convert your first list
 
 1. Open your Vercel URL (e.g. `https://shopping-list-xxxx.vercel.app`) and enter the admin password
-2. Paste the URL of a 購物清單 database and click **轉換** (convert)
-3. Set a password for the list and click **建立分享網址** (create share link)
-4. Send the link and password to your travel companions 🎉
+2. Paste the URL of a "購物清單" database and click **"轉換"** (convert)
+3. Set a password for the list and click **"建立分享網址"** (create share link)
+4. Send the link and password to your travel companions
 
 ## FAQ
 
-**"Database not found" when converting?**
+**1. "Database not found" when converting?**  
 Make sure the page containing the database (or a parent page) has your integration added under **⋯ → Connections**.
 
-**Missing properties or wrong types?**
-Only the template structure is supported. Required properties are 商品名稱, 狀態, 評分 and 種類, and 狀態 must have the options 未購買 and 已購買.
+**2. Missing properties or wrong types?**  
+Only the template structure is supported. Required properties are "商品名稱", "狀態", "評分" and "種類", and "狀態" must have the options "未購買" and "已購買".
 
-**Installing on iPhone?**
+**3. Installing on iPhone?**  
 Open the list in Safari → Share → **Add to Home Screen**. The home-screen app doesn't share logins with Safari, so enter the list password once more the first time.
 
-**No preview image when sharing?**
+**4. No preview image when sharing?**  
 Apps like LINE and Messenger cache previews. Add a parameter such as `?v=2` to the URL and send it again.
 
-**What can someone with the share link do?**
-Nothing without the list password. The website only changes 狀態 (bought) and 評分 (rating) and can add new items; it never deletes anything.
+**5. What can someone with the share link do?**  
+Nothing without the list password.  
+The website only changes "狀態" (bought) and "評分" (rating) and can add new items; it never deletes anything.  
 Whether "Open in Notion" shows anything depends on Notion permissions; if the database is published to the web in Notion, anyone can view it read-only.
 
 ## Local development
