@@ -96,7 +96,7 @@
 
 ### 轉換紀錄（存在 Notion）
 
-在「🛍️ 購物清單」頁面底下建立一個「轉換紀錄」Database，每筆紀錄對應一個分享出去的清單：
+「轉換紀錄」Database 位於獨立的私人頁面「⚙️ ShoppingList 系統設定」底下（與「🛍️ 購物清單」分開，兩個頁面都需連接 Integration）。每筆紀錄對應一個分享出去的清單：
 
 | 欄位 | 型別 | 說明 |
 |---|---|---|
@@ -105,6 +105,7 @@
 | Database ID | rich_text | 對應的購物清單 Database |
 | 密碼雜湊 | rich_text | scrypt 雜湊 + salt，**絕不存明碼** |
 | 啟用 | checkbox | 取消勾選即停用該分享網址 |
+| 建立時間 | created_time | Notion 自動產生 |
 
 ### 驗證與權限
 
@@ -196,8 +197,8 @@ node_modules/
 ## Development workflow
 
 1. **一次性設定**（由擁有者操作，Claude 提供步驟）
-   - Notion：建立 Internal Integration → 連接到「🛍️ 購物清單」頁面
-   - Notion：建立「轉換紀錄」Database（可由 Claude 透過 Notion 連線協助建立，需擁有者同意）
+   - Notion：建立 Internal Integration → 連接到「🛍️ 購物清單」與「⚙️ ShoppingList 系統設定」兩個頁面
+   - Notion：「轉換紀錄」Database 已建立於「⚙️ ShoppingList 系統設定」頁面
    - `npm install`；複製 `.env.example` 為 `.env.local` 並由擁有者填入真實值
    - 在擁有者既有的 GitHub 帳號下建立 Repository `ShoppingList`（建議設為 Private）
    - 建立 Vercel 帳號（用 GitHub 帳號登入）
