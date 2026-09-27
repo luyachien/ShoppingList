@@ -159,6 +159,8 @@
 ├─ .env.example
 ├─ .gitignore
 ├─ package.json
+├─ README.md / README.en.md  # 給其他使用者的中英文設定教學（自行部署）
+├─ LICENSE             # MIT
 └─ CLAUDE.md
 ```
 
