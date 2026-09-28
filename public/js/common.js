@@ -141,6 +141,58 @@ export function initThemeToggles() {
   repaint();
 }
 
+// ---- ℹ️ 說明小氣泡 ----
+// 用 Popover API：點外面、Esc、Android 返回鍵都會自動關閉，且同時只開一個
+const popoverSupported = 'popover' in HTMLElement.prototype;
+let tipCount = 0;
+
+function placeBubble(bubble, anchor) {
+  const a = anchor.getBoundingClientRect();
+  const b = bubble.getBoundingClientRect();
+  const gap = 8;
+  const center = a.left + a.width / 2;
+  const left = Math.min(Math.max(center - b.width / 2, 8), window.innerWidth - b.width - 8);
+  // 預設在上方；上面空間不夠才改到下方
+  const below = a.top - b.height - gap < 8;
+  bubble.classList.toggle('below', below);
+  bubble.style.left = `${left}px`;
+  bubble.style.top = `${below ? a.bottom + gap : a.top - b.height - gap}px`;
+  bubble.style.setProperty('--arrow-x', `${center - left}px`);
+}
+
+export function infoTip(text, label = '說明') {
+  const button = el('button', { type: 'button', class: 'info-tip-btn', 'aria-label': label, text: 'ℹ️' });
+  if (!popoverSupported) {
+    button.addEventListener('click', () => toast(text, { duration: 6000 }));
+    return button;
+  }
+  const id = `info-tip-${++tipCount}`;
+  const bubble = el('div', { id, popover: 'auto', class: 'info-tip', text });
+  // 用 popovertarget 而不是自己 toggle：點按鈕關閉時才不會先被「點外面」關掉又立刻重開
+  button.setAttribute('popovertarget', id);
+  // 開啟當下才知道氣泡尺寸，先隱藏再定位，避免閃一下
+  bubble.addEventListener('beforetoggle', (e) => {
+    if (e.newState === 'open') bubble.style.visibility = 'hidden';
+  });
+  bubble.addEventListener('toggle', (e) => {
+    if (e.newState !== 'open') return;
+    placeBubble(bubble, button);
+    bubble.style.visibility = '';
+  });
+  return el('span', { class: 'info-tip-wrap' }, button, bubble);
+}
+
+// 氣泡是固定位置，捲動後會和按鈕錯開，所以捲動時直接關閉
+if (popoverSupported) {
+  document.addEventListener(
+    'scroll',
+    () => {
+      for (const tip of document.querySelectorAll('.info-tip:popover-open')) tip.hidePopover();
+    },
+    { capture: true, passive: true },
+  );
+}
+
 export function toggleChip({ label, color, pressed, onClick }) {
   return el('button', {
     type: 'button',

@@ -480,9 +480,32 @@ button.topbar-title:active { background: var(--surface-2); }
 .note { white-space: pre-line; overflow-wrap: anywhere; }
 .rating { display: grid; gap: 8px; }
 .rating .btn { justify-self: end; }
-.photo-upload { display: grid; gap: 4px; justify-items: start; }
+.photo-upload { display: flex; align-items: center; gap: 4px; }
 .photo-upload .btn { min-height: var(--tap); }
-.photo-upload .hint { margin: 0; }
+
+/* ---- ℹ️ 說明小氣泡 ---- */
+.label-row { display: flex; align-items: center; gap: 2px; }
+/* 圖示小，但點擊區域維持 44px；負 margin 讓它不撐高所在的列 */
+.info-tip-btn {
+  display: inline-grid; place-items: center;
+  width: var(--tap); height: var(--tap); margin: -12px -6px;
+  padding: 0; border: 0; background: none;
+  font-size: 1rem; line-height: 1; cursor: pointer;
+}
+.info-tip {
+  position: fixed; inset: auto; margin: 0;
+  max-width: min(260px, calc(100vw - 16px));
+  padding: 10px 12px; border: 0; border-radius: 10px;
+  background: var(--text); color: var(--bg);
+  font-size: .88rem; line-height: 1.5;
+  box-shadow: var(--shadow); overflow: visible;
+}
+.info-tip::after {
+  content: ''; position: absolute; top: 100%; left: var(--arrow-x, 50%);
+  transform: translateX(-50%);
+  border: 7px solid transparent; border-top-color: var(--text);
+}
+.info-tip.below::after { top: auto; bottom: 100%; border-top-color: transparent; border-bottom-color: var(--text); }
 
 /* ---- 新增商品的照片欄 ---- */
 .photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 8px; }

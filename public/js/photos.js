@@ -1,5 +1,5 @@
 // 商品照片：在手機上先壓縮，再逐張上傳到 Notion「檔案和媒體」
-import { api, el } from './common.js';
+import { api, el, infoTip } from './common.js';
 
 export const PHOTO_MAX_COUNT = 5;
 // 可一次選多張時，Android 的選擇畫面不會出現「拍照」
@@ -106,7 +106,13 @@ export function photoField({ onError }) {
   paint();
 
   return {
-    node: el('div', { class: 'form-field' }, el('span', { class: 'field-label', text: '照片（選填）' }), grid, hint, el('p', { class: 'hint muted', text: ANDROID_CAMERA_NOTE })),
+    node: el(
+      'div',
+      { class: 'form-field' },
+      el('div', { class: 'label-row' }, el('span', { class: 'field-label', text: '照片（選填）' }), infoTip(ANDROID_CAMERA_NOTE, '照片說明')),
+      grid,
+      hint,
+    ),
     blobs: () => photos.map((p) => p.blob),
     clear: () => {
       for (const p of photos) URL.revokeObjectURL(p.url);

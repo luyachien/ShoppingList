@@ -1,4 +1,4 @@
-import { api, el, fill, initThemeToggles, storage, toast, toggleChip, yen } from './common.js';
+import { api, el, fill, infoTip, initThemeToggles, storage, toast, toggleChip, yen } from './common.js';
 import { initAddItem } from './add-item.js';
 import { initInstall } from './install.js';
 import { ANDROID_CAMERA_NOTE, PHOTO_MAX_COUNT, pickPhotos, uploadPhotos } from './photos.js';
@@ -489,7 +489,7 @@ function renderDetail(item) {
           disabled: !!progress,
           onClick: () => addPhotos(item),
         }),
-        el('p', { class: 'hint muted', text: ANDROID_CAMERA_NOTE }),
+        infoTip(ANDROID_CAMERA_NOTE, '照片說明'),
       ),
     );
   }
