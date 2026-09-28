@@ -16,7 +16,7 @@ In the store you can see what's still left to buy, tick items off, jot down how 
   - Shows only items not yet bought (未購買) by default; switch to bought / all
   - Filter by category, where to buy (Tag), who it's for and priority; sort by priority, price, name or brand; keyword search
   - One-tap "bought" toggle (with undo) and a rating / notes field, both written back to Notion
-  - Add new items from your phone
+  - Add new items from your phone, and take or upload item photos directly (existing items too)
   - Tap-to-zoom photos, notes keep bold text and links, a button for the recommendation link, "Open in Notion"
   - A leading 【…】 in the item name is shown as the brand
   - Dark / light mode, install to home screen, switch between multiple lists

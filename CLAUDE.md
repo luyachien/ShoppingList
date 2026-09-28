@@ -35,18 +35,19 @@
 8. 手動重新整理，取得 Notion 最新資料
 9. 「推薦來源」以按鈕顯示在「已購買」勾選按鈕左側
 10. 外觀切換：深色 ⇄ 淺色兩段切換；未切換前預設跟隨系統，選擇後存在 localStorage
-11. 新增商品（右下角按鈕）：可填品牌、名稱、種類、需要程度、Tag、需要的人、數量、單價、商店、推薦來源、備註；選項只能選 Notion 中已存在的；不支援上傳照片
-12. 切換清單：點標題開啟「我的購物清單」，列出這支手機開過的清單（localStorage，只存 slug 與名稱），也可貼上分享網址加入
-13. 安裝到主畫面（PWA）：Android 用系統安裝提示；iOS 顯示「分享 → 加入主畫面」教學。Service worker 刻意不快取任何內容
-14. 資料庫標題同步：讀取商品與管理頁清單時，以 Notion 最新標題更新轉換紀錄的「名稱」
-15. 分享預覽：/l/<slug> 由 api/list.js 伺服器端輸出 HTML，帶入清單名稱與 og-image.png（LINE 等預覽不執行 JS）
-16. 「在 Notion 開啟」連結（清單頁摘要列、管理頁清單卡片）：能否查看由 Notion 權限決定，網站無法也不需判斷；資料庫若在 Notion「發布到網路」，任何人都能唯讀瀏覽
+11. 新增商品（右下角按鈕）：可填品牌、名稱、種類、需要程度、Tag、需要的人、數量、單價、商店、推薦來源、備註、照片；選項只能選 Notion 中已存在的
+12. 商品照片：新增商品時可附照片，既有商品也可在詳細資料「📷 新增照片」補上；一次最多 5 張，前端先壓縮成長邊 1600px 的 JPEG，再逐張透過 Notion File Upload API 附加到「檔案和媒體」（只附加，不刪除或替換既有照片）
+13. 切換清單：點標題開啟「我的購物清單」，列出這支手機開過的清單（localStorage，只存 slug 與名稱），也可貼上分享網址加入
+14. 安裝到主畫面（PWA）：Android 用系統安裝提示；iOS 顯示「分享 → 加入主畫面」教學。Service worker 刻意不快取任何內容
+15. 資料庫標題同步：讀取商品與管理頁清單時，以 Notion 最新標題更新轉換紀錄的「名稱」
+16. 分享預覽：/l/<slug> 由 api/list.js 伺服器端輸出 HTML，帶入清單名稱與 og-image.png（LINE 等預覽不執行 JS）
+17. 「在 Notion 開啟」連結（清單頁摘要列、管理頁清單卡片）：能否查看由 Notion 權限決定，網站無法也不需判斷；資料庫若在 Notion「發布到網路」，任何人都能唯讀瀏覽
 
 非目標（除非擁有者明確要求，否則不要做）：
 
 - 使用者帳號系統（只有「管理密碼」和「每個清單的密碼」兩種）
 - 在網站上刪除商品，或編輯既有商品「狀態、評分」以外的欄位（請在 Notion 操作）
-- 在網站上新增 Notion 選項（Tag、需要的人等）或上傳商品照片
+- 在網站上新增 Notion 選項（Tag、需要的人等），或刪除 / 替換商品照片
 - 支援模板以外的任意 Notion Database
 - 即時推播、輪詢、離線模式（service worker 不快取）
 
@@ -70,7 +71,7 @@
 | 商店 | rich_text | 顯示、搜尋 |
 | 備註 | rich_text | 顯示、搜尋 |
 | 商品推薦來源 | url | 連結 |
-| 檔案和媒體 | files | 商品縮圖 |
+| 檔案和媒體 | files | 商品縮圖、**可附加照片** |
 | Inbox | checkbox | **網站完全忽略**（擁有者旅遊結束後在 Notion 自行核對用），不讀取、不顯示、不篩選 |
 
 - **必要欄位**（缺少就拒絕轉換）：商品名稱、狀態、評分、種類
@@ -100,6 +101,7 @@
 - 權限：擁有者建立一個 Notion Internal Integration，並把它連接（Connections）到上層頁面「🛍️ 購物清單」。之後在這個頁面底下複製模板建立的新 Database 會自動繼承權限，不需要每次重新連接
 - 讀取：查詢 Database 的 data source，將 Notion property 轉成扁平 JSON
 - 寫入：更新既有 page 只改「狀態」與「評分」；新增商品在該清單的 data source 建立 page（`toCreateProperties` 驗證所有欄位與選項）
+- 照片：`POST /file_uploads` → `/file_uploads/{id}/send`（multipart）→ PATCH page 把新檔案接在「檔案和媒體」既有檔案之後（files 欄位會整個取代，所以既有檔案要一起送回）。Vercel 請求上限 4.5MB，伺服器限制每張 4MB
 - 限速：Notion API 平均約每秒 3 個請求；前端不輪詢，不批次大量寫入
 - 同步策略：開頁面時載入、手動重新整理；寫入採樂觀更新（先改畫面，失敗則還原並提示）
 
@@ -122,7 +124,7 @@
 - **清單密碼**：每個清單各自一組，只存雜湊
 - 驗證成功後，伺服器發給一個 HttpOnly、Secure、SameSite=Lax 的簽章 cookie（用 `SESSION_SECRET` 做 HMAC），限定該清單使用；修改密碼後舊 cookie 自動失效
 - **每一個** API 請求都要在伺服器端驗證 cookie 與清單是否啟用；前端的隱藏或停用只是介面，不是安全機制
-- 寫入 API 只能修改「該清單 Database 內」的頁面，且只能改「狀態」與「評分」；新增商品只能建在該清單 Database，選項值必須是 schema 中已存在的
+- 寫入 API 只能修改「該清單 Database 內」的頁面，且只能改「狀態」與「評分」、附加照片（只接受 JPEG / PNG / WebP / HEIC）；新增商品只能建在該清單 Database，選項值必須是 schema 中已存在的
 - 密碼比對使用 constant-time 比較；錯誤時加入短暫延遲以減緩暴力嘗試
 
 ### 目錄結構
@@ -138,6 +140,7 @@
 │  │  ├─ admin.js       # 轉換器
 │  │  ├─ list.js        # 清單頁
 │  │  ├─ add-item.js    # 新增商品表單
+│  │  ├─ photos.js      # 照片壓縮、選擇與逐張上傳
 │  │  ├─ saved-lists.js # 這支手機開過的清單與切換視窗
 │  │  └─ install.js     # 安裝到主畫面
 │  ├─ sw.js             # 只為可安裝性存在，不快取
@@ -147,7 +150,7 @@
 │  └─ og-image.png      # 分享預覽圖 1200×630
 ├─ api/
 │  ├─ admin.js          # ?action=session|login|logout|lists|inspect|create|update
-│  ├─ list.js           # ?action=page|manifest|info|login|items|create|update
+│  ├─ list.js           # ?action=page|manifest|info|login|items|create|update|photo
 │  └─ _lib/             # 底線開頭：Vercel 不會當成 API 路由
 │     ├─ http.js        # JSON 回應、讀取 body、錯誤處理
 │     ├─ notion.js      # Notion REST 呼叫、分頁、網址 → ID、頁面 → 子資料庫
@@ -243,7 +246,7 @@ node_modules/
 
 - **保持簡單**：個人與旅伴使用的工具，不要過度工程化；任何新增的抽象層、套件、服務都需要明確理由
 - Notion 是唯一資料來源；網站不保存商品資料副本（`localStorage` 只存 UI 偏好，例如上次選的篩選 / 排序）
-- 網站只能：更新既有商品的「狀態」與「評分」、新增商品（不含照片）
+- 網站只能：更新既有商品的「狀態」與「評分」、附加商品照片、新增商品
 - 只支援符合模板的 Database；模板欄位若有變動，只更新 `api/_lib/template.js` 與本文件的模板表格
 - 必須在手機瀏覽器（iOS Safari、Android Chrome）上好用：載入快、單手操作、字體夠大
 - 尊重 Notion API 限速，不做輪詢
