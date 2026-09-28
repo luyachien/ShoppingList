@@ -97,6 +97,15 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 3. 設定這個清單的密碼，按「**建立分享網址**」
 4. 把網址和密碼傳給旅伴
 
+## 使用教學
+
+有截圖、逐步說明每個功能的圖文教學（放在 Notion）：
+
+- 📱 [手機購物清單使用教學](https://about-travel.notion.site/ccdc74f1eb1c83f1b07c01d0e611137b)：給旅伴與自己，說明查看清單、篩選與搜尋、勾選已購買、寫心得、新增商品與照片、安裝到主畫面等
+- ⚙️ [購物清單轉換器使用教學](https://about-travel.notion.site/6e9c74f1eb1c8231b757016180a0d340)：給清單擁有者，說明轉換 Notion 資料庫、設定密碼、分享網址、停用清單
+
+English versions: [Mobile Shopping List — User Guide](https://about-travel.notion.site/Mobile-Shopping-List-User-Guide-0e2c74f1eb1c82ff9763011a49504df1) · [Shopping List Converter — Owner's Guide](https://about-travel.notion.site/Shopping-List-Converter-Owner-s-Guide-795c74f1eb1c8345b5798130356926bf)
+
 ## 常見問題
 
 **1. 轉換時顯示「找不到資料庫」？**  

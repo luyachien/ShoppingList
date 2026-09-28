@@ -99,6 +99,15 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 3. Set a password for the list and click **"建立分享網址"** (create share link)
 4. Send the link and password to your travel companions
 
+## User guides
+
+Step-by-step guides with screenshots for every feature (hosted on Notion):
+
+- 📱 [Mobile Shopping List — User Guide](https://about-travel.notion.site/Mobile-Shopping-List-User-Guide-0e2c74f1eb1c82ff9763011a49504df1): for companions and yourself — viewing the list, filtering and search, marking items as bought, reviews, adding items and photos, installing to the home screen
+- ⚙️ [Shopping List Converter — Owner's Guide](https://about-travel.notion.site/Shopping-List-Converter-Owner-s-Guide-795c74f1eb1c8345b5798130356926bf): for the list owner — converting a Notion database, setting passwords, sharing links, disabling lists
+
+中文版：[手機購物清單使用教學](https://about-travel.notion.site/ccdc74f1eb1c83f1b07c01d0e611137b) · [購物清單轉換器使用教學](https://about-travel.notion.site/6e9c74f1eb1c8231b757016180a0d340)
+
 ## FAQ
 
 **1. "Database not found" when converting?**  
