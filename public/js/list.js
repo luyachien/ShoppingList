@@ -1,7 +1,7 @@
 import { api, el, fill, initThemeToggles, storage, toast, toggleChip, yen } from './common.js';
 import { initAddItem } from './add-item.js';
 import { initInstall } from './install.js';
-import { PHOTO_MAX_COUNT, pickPhotos, uploadPhotos } from './photos.js';
+import { ANDROID_CAMERA_NOTE, PHOTO_MAX_COUNT, pickPhotos, uploadPhotos } from './photos.js';
 import { initSwitcher, rememberList } from './saved-lists.js';
 
 const slug = location.pathname.split('/').filter(Boolean)[1] ?? '';
@@ -479,13 +479,18 @@ function renderDetail(item) {
   if (state.canAddPhotos) {
     const progress = state.uploading.get(item.id);
     rows.push(
-      el('button', {
-        type: 'button',
-        class: 'btn btn-ghost btn-sm photo-upload-btn',
-        text: progress ?? '📷 新增照片',
-        disabled: !!progress,
-        onClick: () => addPhotos(item),
-      }),
+      el(
+        'div',
+        { class: 'photo-upload' },
+        el('button', {
+          type: 'button',
+          class: 'btn btn-ghost btn-sm',
+          text: progress ?? '📷 新增照片',
+          disabled: !!progress,
+          onClick: () => addPhotos(item),
+        }),
+        el('p', { class: 'hint muted', text: ANDROID_CAMERA_NOTE }),
+      ),
     );
   }
   const field = (label, content) => el('div', { class: 'field' }, el('span', { class: 'field-label', text: label }), content);

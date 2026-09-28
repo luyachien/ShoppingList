@@ -2,6 +2,8 @@
 import { api, el } from './common.js';
 
 export const PHOTO_MAX_COUNT = 5;
+// 可一次選多張時，Android 的選擇畫面不會出現「拍照」
+export const ANDROID_CAMERA_NOTE = 'Android 手機無法在這裡直接拍照，請先用相機拍好，再從相簿選取。';
 const MAX_EDGE = 1600;
 const MAX_BYTES = 4 * 1024 * 1024; // 與伺服器上限相同（Vercel 請求上限 4.5MB）
 
@@ -104,7 +106,7 @@ export function photoField({ onError }) {
   paint();
 
   return {
-    node: el('div', { class: 'form-field' }, el('span', { class: 'field-label', text: '照片（選填）' }), grid, hint),
+    node: el('div', { class: 'form-field' }, el('span', { class: 'field-label', text: '照片（選填）' }), grid, hint, el('p', { class: 'hint muted', text: ANDROID_CAMERA_NOTE })),
     blobs: () => photos.map((p) => p.blob),
     clear: () => {
       for (const p of photos) URL.revokeObjectURL(p.url);
