@@ -1,6 +1,7 @@
 import { api, el, fill, initThemeToggles, storage, toast, toggleChip, yen } from './common.js';
 import { initAddItem } from './add-item.js';
 import { initInstall } from './install.js';
+import { PHOTO_MAX_COUNT, pickPhotos, uploadPhotos } from './photos.js';
 import { initSwitcher, rememberList } from './saved-lists.js';
 
 const slug = location.pathname.split('/').filter(Boolean)[1] ?? '';
@@ -20,6 +21,7 @@ const state = {
   name: '',
   items: [],
   options: { category: [], tags: [], people: [], priority: [] },
+  canAddPhotos: false,
   view: 'todo',
   query: '',
   sort: 'priority',
@@ -27,6 +29,7 @@ const state = {
   expanded: new Set(),
   drafts: new Map(), // 尚未儲存的評分
   inflight: new Map(), // 每個商品的寫入依序送出
+  uploading: new Map(), // 商品 ID → 上傳進度文字
 };
 
 // ---- 偏好設定（只存 UI 狀態，不存商品資料） ----
@@ -78,6 +81,7 @@ async function loadItems({ quiet = false } = {}) {
     state.name = data.name;
     state.items = data.items;
     state.options = data.options;
+    state.canAddPhotos = data.canAddPhotos;
     // 移除 Notion 中已不存在的選項，避免篩選卡住
     for (const key of FILTER_KEYS) {
       const valid = new Set(state.options[key].map((o) => o.name));
@@ -129,6 +133,28 @@ async function setPurchased(item, purchased) {
     }
     if (err.status === 401) return showLogin(state.name);
     toast(`同步失敗，已還原：${err.message}`);
+  }
+}
+
+async function addPhotos(item) {
+  const { blobs, skipped } = await pickPhotos(PHOTO_MAX_COUNT);
+  if (!blobs.length) return;
+  if (skipped) toast(`一次最多 ${PHOTO_MAX_COUNT} 張，已略過 ${skipped} 張`);
+  try {
+    const fresh = await uploadPhotos(slug, item.id, blobs, (i, n) => {
+      state.uploading.set(item.id, `上傳中 ${i}/${n}…`);
+      render();
+    });
+    // 上傳期間可能按過重新整理，改用 ID 找目前畫面上的商品
+    const current = state.items.find((i) => i.id === item.id);
+    if (current) current.images = fresh.images;
+    toast(`已加入 ${blobs.length} 張照片`);
+  } catch (err) {
+    if (err.status === 401) return showLogin(state.name);
+    toast(`照片上傳失敗：${err.message}`, { duration: 6000 });
+  } finally {
+    state.uploading.delete(item.id);
+    render();
   }
 }
 
@@ -450,6 +476,18 @@ function renderDetail(item) {
       ),
     );
   }
+  if (state.canAddPhotos) {
+    const progress = state.uploading.get(item.id);
+    rows.push(
+      el('button', {
+        type: 'button',
+        class: 'btn btn-ghost btn-sm photo-upload-btn',
+        text: progress ?? '📷 新增照片',
+        disabled: !!progress,
+        onClick: () => addPhotos(item),
+      }),
+    );
+  }
   const field = (label, content) => el('div', { class: 'field' }, el('span', { class: 'field-label', text: label }), content);
   if (item.shop) rows.push(field('商店', el('span', { text: item.shop })));
   if (item.price != null || item.total != null) {
@@ -595,6 +633,7 @@ async function init() {
   initAddItem({
     slug,
     getOptions: () => state.options,
+    canAddPhotos: () => state.canAddPhotos,
     onCreated: onItemCreated,
     onUnauthorized: () => showLogin(state.name),
   });

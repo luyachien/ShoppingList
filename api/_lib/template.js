@@ -166,7 +166,26 @@ function safeUrl(url) {
   }
 }
 
-// 網站只允許寫入「狀態」與「評分」
+// 資料庫有「檔案和媒體」欄位才能從網站加照片
+export function supportsPhotos(properties) {
+  return properties[FIELDS.images.prop]?.type === FIELDS.images.type;
+}
+
+// files 欄位更新會整個取代，所以既有的檔案要一起送回，新照片接在最後
+export function toAppendPhotoProperties(page, uploadId, filename) {
+  const existing = (page.properties[FIELDS.images.prop]?.files ?? []).map((f) =>
+    f.type === 'external'
+      ? { name: f.name, type: 'external', external: { url: f.external.url } }
+      : { name: f.name, type: 'file', file: { url: f.file.url } },
+  );
+  return {
+    [FIELDS.images.prop]: {
+      files: [...existing, { name: filename, type: 'file_upload', file_upload: { id: uploadId } }],
+    },
+  };
+}
+
+// 既有商品只允許寫入「狀態」與「評分」（照片另由 toAppendPhotoProperties 附加）
 export function toUpdateProperties({ purchased, rating }) {
   const properties = {};
   if (typeof purchased === 'boolean') {

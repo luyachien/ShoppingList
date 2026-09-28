@@ -9,7 +9,8 @@ export class NotionError extends Error {
   }
 }
 
-export async function notion(path, { method = 'GET', body } = {}) {
+// form：檔案上傳用的 FormData；不設定 Content-Type，讓 fetch 自動加上 multipart boundary
+export async function notion(path, { method = 'GET', body, form } = {}) {
   const token = process.env.NOTION_TOKEN;
   if (!token) throw new Error('NOTION_TOKEN is not set');
 
@@ -19,9 +20,9 @@ export async function notion(path, { method = 'GET', body } = {}) {
       headers: {
         Authorization: `Bearer ${token}`,
         'Notion-Version': VERSION,
-        'Content-Type': 'application/json',
+        ...(form ? {} : { 'Content-Type': 'application/json' }),
       },
-      body: body ? JSON.stringify(body) : undefined,
+      body: form ?? (body ? JSON.stringify(body) : undefined),
     });
     // Notion 限速時回 429；短暫等待後重試，避免旅伴連續點擊時整個失敗
     if (res.status === 429 && attempt < 2) {
@@ -33,6 +34,18 @@ export async function notion(path, { method = 'GET', body } = {}) {
     if (!res.ok) throw new NotionError(res.status, data.code, data.message);
     return data;
   }
+}
+
+// 上傳單一檔案，回傳 file_upload ID；需在 1 小時內附加到頁面，否則 Notion 會自動封存
+export async function uploadFile(buffer, contentType, filename) {
+  const upload = await notion('/file_uploads', {
+    method: 'POST',
+    body: { mode: 'single_part', filename, content_type: contentType },
+  });
+  const form = new FormData();
+  form.append('file', new Blob([buffer], { type: contentType }), filename);
+  await notion(`/file_uploads/${upload.id}/send`, { method: 'POST', form });
+  return upload.id;
 }
 
 export async function queryAll(dataSourceId, body = {}) {

@@ -1,5 +1,6 @@
 // 新增商品表單：選項（種類、Tag、需要的人、需要程度）依 Notion 資料庫動態產生
-import { api, el, initSheet, toggleChip } from './common.js';
+import { api, el, initSheet, toast, toggleChip } from './common.js';
+import { photoField, uploadPhotos } from './photos.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -40,7 +41,7 @@ function chipField(label, options, { multiple }) {
   };
 }
 
-export function initAddItem({ slug, getOptions, onCreated, onUnauthorized }) {
+export function initAddItem({ slug, getOptions, canAddPhotos, onCreated, onUnauthorized }) {
   const dialog = $('add-dialog');
   const form = $('add-form');
   const submit = form.querySelector('button[type="submit"]');
@@ -70,6 +71,7 @@ export function initAddItem({ slug, getOptions, onCreated, onUnauthorized }) {
       priority: chipField('需要程度', options.priority, { multiple: false }),
       tags: chipField('購買地點（Tag）', options.tags, { multiple: true }),
       people: chipField('需要的人', options.people, { multiple: true }),
+      photos: canAddPhotos() ? photoField({ onError: (msg) => ($('add-error').textContent = msg) }) : null,
     };
 
     $('add-fields').replaceChildren(
@@ -84,12 +86,13 @@ export function initAddItem({ slug, getOptions, onCreated, onUnauthorized }) {
         shop.node,
         source.node,
         el('label', { class: 'form-field' }, el('span', { class: 'field-label', text: '備註' }), note),
-        el('p', { class: 'hint muted', text: '商品照片請之後在 Notion 裡加入。' }),
+        fields.photos?.node,
       ].filter(Boolean),
     );
   };
 
   const open = () => {
+    fields?.photos?.clear();
     build();
     $('add-error').textContent = '';
     submit.disabled = false;
@@ -122,8 +125,20 @@ export function initAddItem({ slug, getOptions, onCreated, onUnauthorized }) {
     $('add-error').textContent = '';
     try {
       const { item: created } = await api('/api/list?action=create', { method: 'POST', body: { slug, item } });
+      const blobs = fields.photos?.blobs() ?? [];
+      let photoError = null;
+      let result = created;
+      try {
+        result =
+          (await uploadPhotos(slug, created.id, blobs, (i, n) => (submit.textContent = `上傳照片 ${i}/${n}…`))) ?? created;
+      } catch (err) {
+        photoError = err;
+      }
       dialog.close();
-      onCreated(created);
+      fields.photos?.clear();
+      onCreated(result);
+      // 商品已建立，照片失敗只提示，可之後在商品詳細資料補上
+      if (photoError) toast(`商品已新增，但照片上傳失敗：${photoError.message}`, { duration: 6000 });
     } catch (err) {
       if (err.status === 401) {
         dialog.close();

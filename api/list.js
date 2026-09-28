@@ -1,12 +1,23 @@
-// 清單頁（旅伴與擁有者）：頁面、安裝設定、登入、讀取商品、新增商品、更新狀態 / 評分
+// 清單頁（旅伴與擁有者）：頁面、安裝設定、登入、讀取商品、新增商品、更新狀態 / 評分、附加照片
 import { readFile } from 'node:fs/promises';
 import { failDelay, hasListAccess, listLogin, verifyPassword } from './_lib/auth.js';
-import { getQuery, handler, HttpError, readJson, sendJson } from './_lib/http.js';
-import { formatId, getDatabase, notion, plainText, queryAll } from './_lib/notion.js';
+import { getQuery, handler, HttpError, readBinary, readJson, sendJson } from './_lib/http.js';
+import { formatId, getDatabase, notion, plainText, queryAll, uploadFile } from './_lib/notion.js';
 import { findBySlug, syncName } from './_lib/registry.js';
-import { RATING_MAX_LENGTH, schemaOptions, toCreateProperties, toItem, toUpdateProperties } from './_lib/template.js';
+import {
+  RATING_MAX_LENGTH,
+  schemaOptions,
+  supportsPhotos,
+  toAppendPhotoProperties,
+  toCreateProperties,
+  toItem,
+  toUpdateProperties,
+} from './_lib/template.js';
 
 const DEFAULT_TITLE = '旅行購物清單';
+// Vercel 請求上限 4.5MB；前端會先壓縮，一般照片約 1MB 以內
+const PHOTO_MAX_BYTES = 4 * 1024 * 1024;
+const PHOTO_TYPES = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/heic': 'heic', 'image/heif': 'heif' };
 
 async function getActiveRecord(slug) {
   const record = await findBySlug(slug);
@@ -16,6 +27,17 @@ async function getActiveRecord(slug) {
 
 function requireAccess(req, record) {
   if (!hasListAccess(req, record)) throw new HttpError(401, '請輸入清單密碼');
+}
+
+// 確認商品屬於這個清單，避免用別的清單的密碼修改其他資料庫
+async function getListPage(pageId, dataSourceId) {
+  const id = formatId(pageId);
+  if (!id) throw new HttpError(400, '商品 ID 錯誤');
+  const page = await notion(`/pages/${id}`);
+  if (page.parent?.data_source_id !== dataSourceId || page.in_trash || page.archived) {
+    throw new HttpError(404, '找不到這個商品');
+  }
+  return page;
 }
 
 function origin(req) {
@@ -85,7 +107,8 @@ export default handler(async (req, res) => {
   if (req.method === 'GET' && action === 'page') return sendPage(req, res, query.get('slug'));
   if (req.method === 'GET' && action === 'manifest') return sendManifest(res, query.get('slug'));
 
-  const body = req.method === 'POST' ? await readJson(req) : {};
+  // 照片是原始二進位內容，slug 與商品 ID 放在網址參數
+  const body = req.method === 'POST' && action !== 'photo' ? await readJson(req) : {};
   const record = await getActiveRecord(query.get('slug') ?? body.slug);
 
   if (req.method === 'GET' && action === 'info') {
@@ -115,6 +138,7 @@ export default handler(async (req, res) => {
       // 在 Notion 開啟用；能否查看由 Notion 權限決定，網站無法得知
       notionUrl: db.url ?? null,
       options: schemaOptions(ds.properties),
+      canAddPhotos: supportsPhotos(ds.properties),
       items: pages.map(toItem),
     });
   }
@@ -131,20 +155,31 @@ export default handler(async (req, res) => {
   }
 
   if (req.method === 'POST' && action === 'update') {
-    const pageId = formatId(body.pageId);
-    if (!pageId) throw new HttpError(400, '商品 ID 錯誤');
     if (typeof body.rating === 'string' && body.rating.length > RATING_MAX_LENGTH) {
       throw new HttpError(400, `評分最多 ${RATING_MAX_LENGTH} 字`);
     }
     const properties = toUpdateProperties({ purchased: body.purchased, rating: body.rating });
     if (!Object.keys(properties).length) throw new HttpError(400, '沒有要更新的內容');
 
-    // 確認商品屬於這個清單，避免用別的清單的密碼修改其他資料庫
-    const page = await notion(`/pages/${pageId}`);
-    if (page.parent?.data_source_id !== dataSourceId || page.in_trash || page.archived) {
-      throw new HttpError(404, '找不到這個商品');
-    }
-    const updated = await notion(`/pages/${pageId}`, { method: 'PATCH', body: { properties } });
+    const page = await getListPage(body.pageId, dataSourceId);
+    const updated = await notion(`/pages/${page.id}`, { method: 'PATCH', body: { properties } });
+    return sendJson(res, 200, { item: toItem(updated) });
+  }
+
+  // 一次一張，前端依序上傳；每張都重新讀取頁面，才能保留剛附加的照片
+  if (req.method === 'POST' && action === 'photo') {
+    const type = query.get('type');
+    if (!PHOTO_TYPES[type]) throw new HttpError(415, '只支援 JPEG、PNG、WebP、HEIC 照片');
+    const page = await getListPage(query.get('pageId'), dataSourceId);
+    if (!supportsPhotos(page.properties)) throw new HttpError(400, '這個清單沒有「檔案和媒體」欄位');
+    const buffer = await readBinary(req, PHOTO_MAX_BYTES);
+    if (!buffer.length) throw new HttpError(400, '沒有收到照片');
+    const filename = `photo-${Date.now()}.${PHOTO_TYPES[type]}`;
+    const uploadId = await uploadFile(buffer, type, filename);
+    const updated = await notion(`/pages/${page.id}`, {
+      method: 'PATCH',
+      body: { properties: toAppendPhotoProperties(page, uploadId, filename) },
+    });
     return sendJson(res, 200, { item: toItem(updated) });
   }
 

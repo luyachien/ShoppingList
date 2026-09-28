@@ -1,10 +1,12 @@
+// body 為 Blob（照片）時直接送出原始內容，其他一律 JSON
 export async function api(path, { method = 'GET', body } = {}) {
+  const isBlob = body instanceof Blob;
   let res;
   try {
     res = await fetch(path, {
       method,
-      headers: body ? { 'Content-Type': 'application/json' } : {},
-      body: body ? JSON.stringify(body) : undefined,
+      headers: body ? { 'Content-Type': isBlob ? 'application/octet-stream' : 'application/json' } : {},
+      body: isBlob ? body : body ? JSON.stringify(body) : undefined,
       credentials: 'same-origin',
     });
   } catch {

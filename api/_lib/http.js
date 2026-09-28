@@ -36,6 +36,23 @@ export async function readJson(req) {
   }
 }
 
+// 讀取照片的原始內容；Vercel 會把 application/octet-stream 預先解析成 Buffer
+export async function readBinary(req, maxBytes) {
+  const tooLarge = () => new HttpError(413, `照片太大（上限 ${Math.floor(maxBytes / 1024 / 1024)}MB）`);
+  if (Buffer.isBuffer(req.body)) {
+    if (req.body.length > maxBytes) throw tooLarge();
+    return req.body;
+  }
+  const chunks = [];
+  let size = 0;
+  for await (const chunk of req) {
+    size += chunk.length;
+    if (size > maxBytes) throw tooLarge();
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks);
+}
+
 export function handler(fn) {
   return async (req, res) => {
     try {
