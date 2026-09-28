@@ -141,10 +141,12 @@ export function initThemeToggles() {
   repaint();
 }
 
-// ---- ℹ️ 說明小氣泡 ----
+// ---- 說明小氣泡（圓框 i 圖示） ----
 // 用 Popover API：點外面、Esc、Android 返回鍵都會自動關閉，且同時只開一個
 const popoverSupported = 'popover' in HTMLElement.prototype;
 let tipCount = 0;
+const INFO_ICON =
+  '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="9.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 11v6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="7.5" r="1.2" fill="currentColor"/></svg>';
 
 function placeBubble(bubble, anchor) {
   const a = anchor.getBoundingClientRect();
@@ -161,7 +163,9 @@ function placeBubble(bubble, anchor) {
 }
 
 export function infoTip(text, label = '說明') {
-  const button = el('button', { type: 'button', class: 'info-tip-btn', 'aria-label': label, text: 'ℹ️' });
+  const button = el('button', { type: 'button', class: 'info-tip-btn', 'aria-label': label });
+  // 圖示為程式內的固定字串，不含任何使用者資料
+  button.innerHTML = INFO_ICON;
   if (!popoverSupported) {
     button.addEventListener('click', () => toast(text, { duration: 6000 }));
     return button;
