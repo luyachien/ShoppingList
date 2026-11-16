@@ -11,6 +11,7 @@
   --accent-text: #ffffff;
   --success: #2f9e6a;
   --danger: #d44c47;
+  --warning: #a8641a;
   --shadow: 0 1px 2px rgb(15 15 15 / 6%), 0 2px 8px rgb(15 15 15 / 4%);
   --radius: 14px;
   --tap: 44px;
@@ -41,6 +42,7 @@
   --accent: #3b93ea;
   --success: #4dbb85;
   --danger: #ef6b66;
+  --warning: #e3a252;
   --shadow: 0 1px 2px rgb(0 0 0 / 40%);
 
   --c-default-bg: #373737; --c-default-fg: #d4d4d2;
@@ -86,7 +88,7 @@ a { color: var(--accent); }
 
 input, select, textarea, button { font: inherit; color: inherit; }
 
-input[type="password"], input[type="url"], input[type="search"], select, textarea {
+input[type="password"], input[type="url"], input[type="search"], input[type="text"], input[type="date"], select, textarea {
   width: 100%;
   min-height: var(--tap);
   padding: 10px 12px;
@@ -97,6 +99,8 @@ input[type="password"], input[type="url"], input[type="search"], select, textare
   font-size: 16px;
 }
 textarea { resize: vertical; line-height: 1.5; }
+/* iOS Safari 的空白日期欄位預設會縮成很窄 */
+input[type="date"] { -webkit-appearance: none; appearance: none; display: block; text-align: left; }
 input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible, a:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
@@ -179,6 +183,15 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-
   gap: 12px;
 }
 .login-icon, .fatal-icon { font-size: 2.6rem; line-height: 1; }
+.edit-banner {
+  margin: 0 16px 8px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  font-size: .88rem;
+}
+.edit-row { display: flex; }
+.warning-text { margin: 4px 0 0; color: var(--warning); }
 .login-hint {
   margin: 0;
   padding: 8px 12px;

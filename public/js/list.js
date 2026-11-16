@@ -22,6 +22,8 @@ const state = {
   items: [],
   options: { category: [], tags: [], people: [], priority: [] },
   canAddPhotos: false,
+  canEdit: false, // 出發日之前可編輯商品資料（伺服器端會再檢查）
+  tripDate: '',
   view: 'todo',
   query: '',
   sort: 'priority',
@@ -31,6 +33,8 @@ const state = {
   inflight: new Map(), // 每個商品的寫入依序送出
   uploading: new Map(), // 商品 ID → 上傳進度文字
 };
+
+let itemForm = null; // 新增 / 編輯商品表單，init() 時建立
 
 // ---- 偏好設定（只存 UI 狀態，不存商品資料） ----
 
@@ -84,6 +88,8 @@ async function loadItems({ quiet = false } = {}) {
     state.items = data.items;
     state.options = data.options;
     state.canAddPhotos = data.canAddPhotos;
+    state.canEdit = !!data.canEdit;
+    state.tripDate = data.tripDate || '';
     // 移除 Notion 中已不存在的選項，避免篩選卡住
     for (const key of FILTER_KEYS) {
       const valid = new Set(state.options[key].map((o) => o.name));
@@ -234,7 +240,22 @@ function chip(label, color, extraClass = '') {
   return el('span', { class: `chip c-${color} ${extraClass}`, text: label });
 }
 
+// 2027-12-20 → 12/20（不是今年才加上年份）
+function formatTripDate(value) {
+  const [y, m, d] = value.split('-').map(Number);
+  return y === new Date().getFullYear() ? `${m}/${d}` : `${y}/${m}/${d}`;
+}
+
+function renderEditBanner() {
+  const banner = $('edit-banner');
+  banner.hidden = !state.canEdit;
+  if (state.canEdit) {
+    banner.textContent = `✏️ 出發前可以編輯商品資料；${formatTripDate(state.tripDate)} 起只能修改購買狀態與心得`;
+  }
+}
+
 function render() {
+  renderEditBanner();
   const total = state.items.length;
   const done = state.items.filter((i) => i.purchased).length;
   $('progress').textContent = `已購買 ${done} / ${total}`;
@@ -508,6 +529,15 @@ function renderDetail(item) {
     );
   }
   if (item.note.length) rows.push(field('備註', el('p', { class: 'note' }, noteContent(item.note))));
+  if (state.canEdit) {
+    rows.push(
+      el(
+        'div',
+        { class: 'edit-row' },
+        el('button', { type: 'button', class: 'btn btn-ghost btn-sm', text: '✏️ 編輯商品', onClick: () => itemForm.openEdit(item) }),
+      ),
+    );
+  }
 
   const draft = state.drafts.get(item.id) ?? item.rating;
   const save = el('button', { type: 'button', class: 'btn btn-primary btn-sm', text: '儲存評分', disabled: draft === item.rating });
@@ -627,6 +657,19 @@ for (const btn of document.querySelectorAll('.segmented button')) {
 
 // ---- 啟動 ----
 
+function onItemUpdated(item) {
+  const index = state.items.findIndex((i) => i.id === item.id);
+  if (index >= 0) state.items[index] = item;
+  render();
+  toast(`已更新「${item.name}」`);
+}
+
+function onEditLocked(message) {
+  state.canEdit = false;
+  render();
+  toast(message, { duration: 6000 });
+}
+
 function onItemCreated(item) {
   state.items.push(item);
   render();
@@ -637,11 +680,13 @@ function onItemCreated(item) {
 async function init() {
   initSwitcher(slug);
   initInstall();
-  initAddItem({
+  itemForm = initAddItem({
     slug,
     getOptions: () => state.options,
     canAddPhotos: () => state.canAddPhotos,
     onCreated: onItemCreated,
+    onUpdated: onItemUpdated,
+    onEditLocked,
     onUnauthorized: () => showLogin(state.name),
   });
   if (!slug) return showFatal('網址不正確');

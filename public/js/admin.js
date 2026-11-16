@@ -83,6 +83,7 @@ function renderInspect(url) {
   const pw = el('input', { type: 'password', placeholder: '清單密碼（至少 4 個字元）', autocomplete: 'new-password', minlength: 4, required: true });
   const pw2 = el('input', { type: 'password', placeholder: '再輸入一次', autocomplete: 'new-password', required: true });
   const hint = hintInput();
+  const tripDate = tripDateInput();
   const error = el('p', { class: 'error', role: 'alert' });
   const submit = el('button', { type: 'submit', class: 'btn btn-primary', text: '建立分享網址' });
   const form = el(
@@ -94,6 +95,8 @@ function renderInspect(url) {
     pw2,
     hint,
     el('p', { class: 'hint muted', text: HINT_NOTE }),
+    el('label', { class: 'field-label', text: '出發日（選填）' }, tripDate),
+    el('p', { class: 'hint muted', text: TRIP_NOTE }),
     submit,
     error,
   );
@@ -103,7 +106,7 @@ function renderInspect(url) {
     if (pw.value !== pw2.value) return (error.textContent = '兩次輸入的密碼不一致');
     submit.disabled = true;
     try {
-      const { slug } = await api('/api/admin?action=create', { method: 'POST', body: { url, password: pw.value, hint: hint.value } });
+      const { slug } = await api('/api/admin?action=create', { method: 'POST', body: { url, password: pw.value, hint: hint.value, tripDate: tripDate.value } });
       box.replaceChildren(header, el('p', { class: 'success', text: '✓ 已建立分享網址' }));
       $('share-result').replaceChildren(shareBox(slug));
       $('share-step').hidden = false;
@@ -123,6 +126,20 @@ const HINT_NOTE = '密碼提示（選填）會公開顯示在登入頁，任何�
 
 function hintInput(value = '') {
   return el('input', { type: 'text', placeholder: '密碼提示（選填）', maxlength: 100, autocomplete: 'off', value });
+}
+
+const TRIP_NOTE = '出發日之前，旅伴可以編輯商品資料；出發日當天 00:00（台灣時間）起只能修改購買狀態與心得、新增商品。不設定就一律不能編輯商品資料。';
+
+function tripDateInput(value = '') {
+  return el('input', { type: 'date', value });
+}
+
+function tripDateText(tripDate) {
+  if (!tripDate) return '🗓️ 未設定出發日（只能修改購買狀態與心得）';
+  const date = tripDate.replace(/-/g, '/');
+  // 與伺服器相同用台灣時間判斷，僅供顯示
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei' }).format(new Date());
+  return today < tripDate ? `🗓️ 出發日 ${date}，在這之前可以編輯商品` : `🗓️ 出發日 ${date}，已鎖定商品資料`;
 }
 
 function shareBox(slug) {
@@ -225,6 +242,43 @@ function renderListCard(list) {
     }
   });
 
+  const tripText = el('p', { class: 'muted small' });
+  const renderTrip = () => (tripText.textContent = tripDateText(list.tripDate));
+  renderTrip();
+  const tripForm = el('form', { class: 'stack pw-form', hidden: true });
+  const tripField = tripDateInput(list.tripDate);
+  tripForm.append(
+    tripField,
+    el('p', { class: 'hint muted', text: `${TRIP_NOTE}清空後儲存即可移除。` }),
+    el('button', { type: 'submit', class: 'btn btn-primary btn-sm', text: '儲存出發日' }),
+  );
+  tripForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const button = tripForm.querySelector('button');
+    button.disabled = true;
+    try {
+      const value = tripField.value;
+      await api('/api/admin?action=update', { method: 'POST', body: { slug: list.slug, tripDate: value } });
+      list.tripDate = value;
+      renderTrip();
+      tripForm.hidden = true;
+      toast(value ? '出發日已更新' : '已移除出發日');
+    } catch (err) {
+      toast(err.message);
+    } finally {
+      button.disabled = false;
+    }
+  });
+
+  // 一次只展開一個設定表單
+  const forms = [pwForm, hintForm, tripForm];
+  const toggleForm = (form, focus) => {
+    const open = form.hidden;
+    for (const f of forms) f.hidden = true;
+    form.hidden = !open;
+    if (open) focus.focus();
+  };
+
   const card = el(
     'li',
     { class: `card list-card${list.enabled ? '' : ' is-disabled'}` },
@@ -236,6 +290,7 @@ function renderListCard(list) {
     ),
     shareBox(list.slug),
     hintText,
+    tripText,
     el(
       'div',
       { class: 'btn-row' },
@@ -243,21 +298,19 @@ function renderListCard(list) {
         type: 'button',
         class: 'btn btn-ghost btn-sm',
         text: '修改密碼',
-        onClick: () => {
-          pwForm.hidden = !pwForm.hidden;
-          hintForm.hidden = true;
-          if (!pwForm.hidden) pwInput.focus();
-        },
+        onClick: () => toggleForm(pwForm, pwInput),
       }),
       el('button', {
         type: 'button',
         class: 'btn btn-ghost btn-sm',
         text: '密碼提示',
-        onClick: () => {
-          hintForm.hidden = !hintForm.hidden;
-          pwForm.hidden = true;
-          if (!hintForm.hidden) hintField.focus();
-        },
+        onClick: () => toggleForm(hintForm, hintField),
+      }),
+      el('button', {
+        type: 'button',
+        class: 'btn btn-ghost btn-sm',
+        text: '出發日',
+        onClick: () => toggleForm(tripForm, tripField),
       }),
       el('a', {
         class: 'btn btn-ghost btn-sm',
@@ -269,6 +322,7 @@ function renderListCard(list) {
     ),
     pwForm,
     hintForm,
+    tripForm,
   );
   return card;
 }

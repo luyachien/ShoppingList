@@ -24,6 +24,7 @@
 3. 為這個清單設定使用密碼，產生分享網址 `/l/<slug>`
 4. 可以查看已轉換的清單、修改密碼、停用清單
 5. 可為每個清單設定選填的「密碼提示」（建立時或之後修改），顯示在清單登入頁；提示是公開資訊，不可直接寫出密碼
+6. 可為每個清單設定選填的「出發日」：出發日之前旅伴可在清單頁編輯商品資料；出發日當天 00:00（台灣時間）起自動鎖定
 
 **清單頁（擁有者與旅伴，需清單密碼）**
 1. 預設顯示「未購買」商品，可切換顯示已購買 / 全部
@@ -43,11 +44,12 @@
 15. 資料庫標題同步：讀取商品與管理頁清單時，以 Notion 最新標題更新轉換紀錄的「名稱」
 16. 分享預覽：/l/<slug> 由 api/list.js 伺服器端輸出 HTML，帶入清單名稱與 og-image.png（LINE 等預覽不執行 JS）
 17. 「在 Notion 開啟」連結（清單頁摘要列、管理頁清單卡片）：能否查看由 Notion 權限決定，網站無法也不需判斷；資料庫若在 Notion「發布到網路」，任何人都能唯讀瀏覽
+18. 出發前編輯商品：出發日之前，商品詳細資料有「✏️ 編輯商品」，沿用新增商品的表單並帶入現有資料，可改品牌、名稱、種類、需要程度、Tag、需要的人、數量、單價、商店、推薦來源、備註；只送出有改動的欄位。備註原本有粗體 / 連結時，表單會警告儲存後變成純文字。出發日之後（或未設定出發日）只能改「狀態、評分」、新增商品、附加照片
 
 非目標（除非擁有者明確要求，否則不要做）：
 
 - 使用者帳號系統（只有「管理密碼」和「每個清單的密碼」兩種）
-- 在網站上刪除商品，或編輯既有商品「狀態、評分」以外的欄位（請在 Notion 操作）
+- 在網站上刪除商品（請在 Notion 操作）；出發日之後（或未設定出發日）編輯既有商品「狀態、評分」以外的欄位
 - 在網站上新增 Notion 選項（Tag、需要的人等），或刪除 / 替換商品照片
 - 支援模板以外的任意 Notion Database
 - 即時推播、輪詢、離線模式（service worker 不快取）
@@ -101,7 +103,7 @@
 - 網址中取出 32 字元的 ID；如果 ID 指向的是頁面而不是 Database，則讀取該頁面底下的第一個 Database
 - 權限：擁有者建立一個 Notion Internal Integration，並把它連接（Connections）到上層頁面「🛍️ 購物清單」。之後在這個頁面底下複製模板建立的新 Database 會自動繼承權限，不需要每次重新連接
 - 讀取：查詢 Database 的 data source，將 Notion property 轉成扁平 JSON
-- 寫入：更新既有 page 只改「狀態」與「評分」；新增商品在該清單的 data source 建立 page（`toCreateProperties` 驗證所有欄位與選項）
+- 寫入：更新既有 page 隨時可改「狀態」與「評分」；出發日之前另可用 `toEditProperties` 改其他欄位（不含狀態、評分、照片）；新增商品在該清單的 data source 建立 page（`toCreateProperties` 驗證所有欄位與選項）
 - 照片：`POST /file_uploads` → `/file_uploads/{id}/send`（multipart）→ PATCH page 把新檔案接在「檔案和媒體」既有檔案之後（files 欄位會整個取代，所以既有檔案要一起送回）。Vercel 請求上限 4.5MB，伺服器限制每張 4MB
 - 限速：Notion API 平均約每秒 3 個請求；前端不輪詢，不批次大量寫入
 - 同步策略：開頁面時載入、手動重新整理；寫入採樂觀更新（先改畫面，失敗則還原並提示）
@@ -117,6 +119,7 @@
 | Database ID | rich_text | 對應的購物清單 Database |
 | 密碼雜湊 | rich_text | scrypt 雜湊 + salt，**絕不存明碼** |
 | 密碼提示 | rich_text | 選填，由管理頁設定，**公開**顯示在清單登入頁；欄位不存在時視為沒有提示 |
+| 出發日 | date | 選填；這天之前（台灣時間）可在網站編輯商品資料，當天 00:00 起鎖定；空白 = 不開放編輯 |
 | 啟用 | checkbox | 取消勾選即停用該分享網址 |
 | 建立時間 | created_time | Notion 自動產生 |
 
@@ -126,7 +129,7 @@
 - **清單密碼**：每個清單各自一組，只存雜湊
 - 驗證成功後，伺服器發給一個 HttpOnly、Secure、SameSite=Lax 的簽章 cookie（用 `SESSION_SECRET` 做 HMAC），限定該清單使用；修改密碼後舊 cookie 自動失效
 - **每一個** API 請求都要在伺服器端驗證 cookie 與清單是否啟用；前端的隱藏或停用只是介面，不是安全機制
-- 寫入 API 只能修改「該清單 Database 內」的頁面，且只能改「狀態」與「評分」、附加照片（只接受 JPEG / PNG / WebP / HEIC）；新增商品只能建在該清單 Database，選項值必須是 schema 中已存在的
+- 寫入 API 只能修改「該清單 Database 內」的頁面，且只能改「狀態」與「評分」、附加照片，出發日之前另可編輯其他商品欄位（`action=edit`，伺服器以台灣時間判斷，不信任前端）（只接受 JPEG / PNG / WebP / HEIC）；新增商品只能建在該清單 Database，選項值必須是 schema 中已存在的
 - 密碼比對使用 constant-time 比較；錯誤時加入短暫延遲以減緩暴力嘗試
 
 ### 目錄結構
@@ -152,7 +155,7 @@
 │  └─ og-image.png      # 分享預覽圖 1200×630
 ├─ api/
 │  ├─ admin.js          # ?action=session|login|logout|lists|inspect|create|update
-│  ├─ list.js           # ?action=page|manifest|info|login|items|create|update|photo
+│  ├─ list.js           # ?action=page|manifest|info|login|items|create|update|edit|photo
 │  └─ _lib/             # 底線開頭：Vercel 不會當成 API 路由
 │     ├─ http.js        # JSON 回應、讀取 body、錯誤處理
 │     ├─ notion.js      # Notion REST 呼叫、分頁、網址 → ID、頁面 → 子資料庫
@@ -248,7 +251,7 @@ node_modules/
 
 - **保持簡單**：個人與旅伴使用的工具，不要過度工程化；任何新增的抽象層、套件、服務都需要明確理由
 - Notion 是唯一資料來源；網站不保存商品資料副本（`localStorage` 只存 UI 偏好，例如上次選的篩選 / 排序）
-- 網站只能：更新既有商品的「狀態」與「評分」、附加商品照片、新增商品
+- 網站只能：更新既有商品的「狀態」與「評分」、附加商品照片、新增商品；出發日之前另可編輯商品其他欄位（永遠不能刪除商品或照片）
 - 只支援符合模板的 Database；模板欄位若有變動，只更新 `api/_lib/template.js` 與本文件的模板表格
 - 必須在手機瀏覽器（iOS Safari、Android Chrome）上好用：載入快、單手操作、字體夠大
 - 尊重 Notion API 限速，不做輪詢

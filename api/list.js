@@ -1,15 +1,16 @@
-// 清單頁（旅伴與擁有者）：頁面、安裝設定、登入、讀取商品、新增商品、更新狀態 / 評分、附加照片
+// 清單頁（旅伴與擁有者）：頁面、安裝設定、登入、讀取商品、新增商品、更新狀態 / 評分、出發前編輯商品、附加照片
 import { readFile } from 'node:fs/promises';
 import { failDelay, hasListAccess, listLogin, verifyPassword } from './_lib/auth.js';
 import { getQuery, handler, HttpError, readBinary, readJson, sendJson } from './_lib/http.js';
 import { formatId, getDatabase, notion, plainText, queryAll, uploadFile } from './_lib/notion.js';
-import { findBySlug, syncName } from './_lib/registry.js';
+import { canEditItems, findBySlug, syncName } from './_lib/registry.js';
 import {
   RATING_MAX_LENGTH,
   schemaOptions,
   supportsPhotos,
   toAppendPhotoProperties,
   toCreateProperties,
+  toEditProperties,
   toItem,
   toUpdateProperties,
 } from './_lib/template.js';
@@ -140,6 +141,9 @@ export default handler(async (req, res) => {
       notionUrl: db.url ?? null,
       options: schemaOptions(ds.properties),
       canAddPhotos: supportsPhotos(ds.properties),
+      // 畫面顯示用；真正的權限在 action=edit 由伺服器重新判斷
+      tripDate: record.tripDate,
+      canEdit: canEditItems(record),
       items: pages.map(toItem),
     });
   }
@@ -162,6 +166,20 @@ export default handler(async (req, res) => {
     const properties = toUpdateProperties({ purchased: body.purchased, rating: body.rating });
     if (!Object.keys(properties).length) throw new HttpError(400, '沒有要更新的內容');
 
+    const page = await getListPage(body.pageId, dataSourceId);
+    const updated = await notion(`/pages/${page.id}`, { method: 'PATCH', body: { properties } });
+    return sendJson(res, 200, { item: toItem(updated) });
+  }
+
+  // 出發日之前可以編輯商品其他欄位；以伺服器時間判斷，不信任前端
+  if (req.method === 'POST' && action === 'edit') {
+    if (!canEditItems(record)) {
+      throw new HttpError(403, record.tripDate ? '已到出發日，只能修改購買狀態與心得' : '這個清單沒有開放編輯商品資料');
+    }
+    const ds = await notion(`/data_sources/${dataSourceId}`);
+    const { properties, errors } = toEditProperties(body.item ?? {}, ds.properties);
+    if (errors.length) throw new HttpError(400, errors.join('；'));
+    if (!Object.keys(properties).length) throw new HttpError(400, '沒有要更新的內容');
     const page = await getListPage(body.pageId, dataSourceId);
     const updated = await notion(`/pages/${page.id}`, { method: 'PATCH', body: { properties } });
     return sendJson(res, 200, { item: toItem(updated) });

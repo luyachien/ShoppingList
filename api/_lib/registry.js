@@ -9,6 +9,7 @@ const P = {
   databaseId: 'Database ID',
   hash: '密碼雜湊',
   hint: '密碼提示',
+  tripDate: '出發日',
   enabled: '啟用',
   created: '建立時間',
 };
@@ -29,6 +30,8 @@ function toRecord(page) {
     hash: plainText(p[P.hash]?.rich_text),
     // 較早建立的轉換紀錄可能沒有這個欄位，視為沒有提示
     hint: plainText(p[P.hint]?.rich_text),
+    // YYYY-MM-DD；未設定時為空字串（只能改狀態與評分）
+    tripDate: p[P.tripDate]?.date?.start?.slice(0, 10) ?? '',
     enabled: !!p[P.enabled]?.checkbox,
     createdTime: p[P.created]?.created_time ?? page.created_time,
   };
@@ -36,16 +39,33 @@ function toRecord(page) {
 
 const text = (content) => ({ rich_text: content ? [{ type: 'text', text: { content } }] : [] });
 
-// 「密碼提示」是後來加的欄位；轉換紀錄缺少它時，回傳明確的設定說明而不是 Notion 原始錯誤
-async function writeRegistry(path, method, body, touchesHint) {
+// 「密碼提示」「出發日」是後來加的欄位；轉換紀錄缺少時，回傳明確的設定說明而不是 Notion 原始錯誤
+const OPTIONAL_COLUMNS = [
+  [P.hint, '文字'],
+  [P.tripDate, '日期'],
+];
+
+async function writeRegistry(path, method, body) {
   try {
     return await notion(path, { method, body });
   } catch (err) {
-    if (touchesHint && err instanceof NotionError && err.status === 400 && err.message?.includes(P.hint)) {
-      throw new HttpError(400, `請先在 Notion「轉換紀錄」資料庫新增「${P.hint}」欄位（文字類型）`);
+    if (err instanceof NotionError && err.status === 400) {
+      const missing = OPTIONAL_COLUMNS.find(([prop]) => prop in body.properties && err.message?.includes(prop));
+      if (missing) throw new HttpError(400, `請先在 Notion「轉換紀錄」資料庫新增「${missing[0]}」欄位（${missing[1]}類型）`);
     }
     throw err;
   }
+}
+
+const date = (value) => ({ date: value ? { start: value } : null });
+
+// 以台灣時間判斷日期，不受旅伴手機所在時區影響；出發日當天 00:00 起鎖定
+const TIME_ZONE = 'Asia/Taipei';
+export const todayInTaipei = (now = new Date()) =>
+  new Intl.DateTimeFormat('en-CA', { timeZone: TIME_ZONE, year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
+
+export function canEditItems(record, now = new Date()) {
+  return !!record.tripDate && todayInTaipei(now) < record.tripDate;
 }
 
 // 傳給前端時去除密碼雜湊
@@ -75,7 +95,7 @@ export async function findByDatabaseId(databaseId) {
   return pages[0] ? toRecord(pages[0]) : null;
 }
 
-export async function createRecord({ name, databaseId, hash, hint }) {
+export async function createRecord({ name, databaseId, hash, hint, tripDate }) {
   const slug = randomBytes(12).toString('base64url');
   const properties = {
     [P.name]: { title: [{ type: 'text', text: { content: name } }] },
@@ -86,11 +106,11 @@ export async function createRecord({ name, databaseId, hash, hint }) {
   };
   // 沒填提示就不送這個欄位，尚未新增欄位的轉換紀錄也能照常建立
   if (hint) properties[P.hint] = text(hint);
+  if (tripDate) properties[P.tripDate] = date(tripDate);
   await writeRegistry(
     '/pages',
     'POST',
     { parent: { type: 'data_source_id', data_source_id: await registryDataSource() }, properties },
-    !!hint,
   );
   return slug;
 }
@@ -102,12 +122,13 @@ export async function syncName(record, title) {
   record.name = title;
 }
 
-// hint 傳空字串代表清除提示；undefined 代表不變
-export async function updateRecord(pageId, { name, hash, hint, enabled }) {
+// hint / tripDate 傳空字串代表清除；undefined 代表不變
+export async function updateRecord(pageId, { name, hash, hint, tripDate, enabled }) {
   const properties = {};
   if (name) properties[P.name] = { title: [{ type: 'text', text: { content: name } }] };
   if (hash) properties[P.hash] = text(hash);
   if (typeof hint === 'string') properties[P.hint] = text(hint);
+  if (typeof tripDate === 'string') properties[P.tripDate] = date(tripDate);
   if (typeof enabled === 'boolean') properties[P.enabled] = { checkbox: enabled };
-  await writeRegistry(`/pages/${pageId}`, 'PATCH', { properties }, typeof hint === 'string');
+  await writeRegistry(`/pages/${pageId}`, 'PATCH', { properties });
 }

@@ -18,6 +18,7 @@ In the store you can see what's still left to buy, tick items off, jot down how 
   - One-tap "bought" toggle (with undo) and a rating / notes field, both written back to Notion
   - Add new items from your phone, and take or upload item photos directly (existing items too)
     - On Android the picker has no "take photo" option; take the photo with the camera app first, then choose it from the gallery
+  - Set a departure date (出發日) and your companions can edit item details before the trip; from that day on items are locked — only "bought" and ratings can change — so nothing gets edited by accident while travelling
   - Tap-to-zoom photos, notes keep bold text and links, a button for the recommendation link, "Open in Notion"
   - A leading 【…】 in the item name is shown as the brand
   - Dark / light mode, install to home screen, switch between multiple lists
@@ -46,7 +47,12 @@ It contains two databases:
 - **購物清單** (shopping list): duplicate it for each trip
 - **轉換紀錄** (registry): managed by the website — leave it empty
 
-> 💡 If your copy of "轉換紀錄" was duplicated earlier and has no "**密碼提示**" (password hint) property, add a **Text** property named `密碼提示` to be able to set a password hint shown on the list's login page. Everything else works without it.
+> 💡 If your copy of "轉換紀錄" was duplicated earlier and is missing these properties, add them yourself (everything else works without them):
+>
+> | Property name | Type | Purpose |
+> |---|---|---|
+> | `密碼提示` | Text | Password hint shown on the list's login page |
+> | `出發日` | Date | Item details can be edited on the website before this date |
 
 > ⚠️ Don't rename properties or change their types; the website depends on them. You can freely add or edit options (e.g. Tag locations, "需要的人").
 
@@ -126,7 +132,7 @@ Apps like LINE and Messenger cache previews. Add a parameter such as `?v=2` to t
 
 **5. What can someone with the share link do?**  
 Nothing without the list password.  
-The website only changes "狀態" (bought) and "評分" (rating) and can add new items; it never deletes anything.  
+The website only changes "狀態" (bought) and "評分" (rating) and can add new items and photos; if a departure date is set, item details can also be edited before the trip. It never deletes items or photos.  
 Whether "Open in Notion" shows anything depends on Notion permissions; if the database is published to the web in Notion, anyone can view it read-only.
 
 ## Local development
