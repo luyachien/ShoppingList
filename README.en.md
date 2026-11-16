@@ -46,6 +46,8 @@ It contains two databases:
 - **購物清單** (shopping list): duplicate it for each trip
 - **轉換紀錄** (registry): managed by the website — leave it empty
 
+> 💡 If your copy of "轉換紀錄" was duplicated earlier and has no "**密碼提示**" (password hint) property, add a **Text** property named `密碼提示` to be able to set a password hint shown on the list's login page. Everything else works without it.
+
 > ⚠️ Don't rename properties or change their types; the website depends on them. You can freely add or edit options (e.g. Tag locations, "需要的人").
 
 ### 2. Create a Notion integration

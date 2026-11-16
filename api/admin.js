@@ -5,6 +5,15 @@ import { extractNotionId, getDatabase, notion, plainText, queryAll, resolveDatab
 import { createRecord, findByDatabaseId, findBySlug, listAll, publicRecord, syncName, updateRecord } from './_lib/registry.js';
 import { validateSchema } from './_lib/template.js';
 
+const HINT_MAX = 100;
+
+// 提示會公開顯示在登入頁，限制長度並去除前後空白
+function normalizeHint(hint) {
+  const value = String(hint ?? '').trim();
+  if (value.length > HINT_MAX) throw new HttpError(400, `密碼提示最多 ${HINT_MAX} 個字`);
+  return value;
+}
+
 async function inspect(url) {
   const id = extractNotionId(url);
   if (!id) throw new HttpError(400, '網址中找不到 Notion ID，請貼上資料庫的完整網址');
@@ -62,8 +71,9 @@ export default handler(async (req, res) => {
   }
 
   if (req.method === 'POST' && action === 'create') {
-    const { url, password } = await readJson(req);
+    const { url, password, hint } = await readJson(req);
     validatePassword(password);
+    const cleanHint = normalizeHint(hint);
     const info = await inspect(url);
     if (info.errors.length) throw new HttpError(422, '這個資料庫不符合購物清單模板', { errors: info.errors });
     if (info.existing) {
@@ -73,17 +83,19 @@ export default handler(async (req, res) => {
       name: info.title,
       databaseId: info.databaseId,
       hash: await hashPassword(password),
+      hint: cleanHint,
     });
     return sendJson(res, 201, { slug, name: info.title });
   }
 
   if (req.method === 'POST' && action === 'update') {
-    const { slug, password, enabled } = await readJson(req);
+    const { slug, password, hint, enabled } = await readJson(req);
     const record = await findBySlug(slug);
     if (!record) throw new HttpError(404, '找不到這個清單');
     if (password !== undefined) validatePassword(password);
     await updateRecord(record.pageId, {
       hash: password !== undefined ? await hashPassword(password) : undefined,
+      hint: hint !== undefined ? normalizeHint(hint) : undefined,
       enabled: typeof enabled === 'boolean' ? enabled : undefined,
     });
     return sendJson(res, 200, { ok: true });
