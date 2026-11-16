@@ -112,7 +112,8 @@ export default handler(async (req, res) => {
   const record = await getActiveRecord(query.get('slug') ?? body.slug);
 
   if (req.method === 'GET' && action === 'info') {
-    return sendJson(res, 200, { name: record.name, authorized: hasListAccess(req, record) });
+    // 密碼提示在登入前就需要，由擁有者自行決定是否設定（公開資訊）
+    return sendJson(res, 200, { name: record.name, hint: record.hint, authorized: hasListAccess(req, record) });
   }
 
   if (req.method === 'POST' && action === 'login') {

@@ -179,6 +179,15 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-
   gap: 12px;
 }
 .login-icon, .fatal-icon { font-size: 2.6rem; line-height: 1; }
+.login-hint {
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  font-size: .92rem;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
 
 .stack { display: grid; gap: 10px; }
 .hint { font-size: .85rem; }

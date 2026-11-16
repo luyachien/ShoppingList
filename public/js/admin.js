@@ -82,6 +82,7 @@ function renderInspect(url) {
 
   const pw = el('input', { type: 'password', placeholder: '清單密碼（至少 4 個字元）', autocomplete: 'new-password', minlength: 4, required: true });
   const pw2 = el('input', { type: 'password', placeholder: '再輸入一次', autocomplete: 'new-password', required: true });
+  const hint = hintInput();
   const error = el('p', { class: 'error', role: 'alert' });
   const submit = el('button', { type: 'submit', class: 'btn btn-primary', text: '建立分享網址' });
   const form = el(
@@ -91,6 +92,8 @@ function renderInspect(url) {
     el('p', { class: 'hint muted', text: '旅伴需要輸入這組密碼才能查看與修改清單。密碼不會以明碼儲存，建立後無法查看，請自行記下。' }),
     pw,
     pw2,
+    hint,
+    el('p', { class: 'hint muted', text: HINT_NOTE }),
     submit,
     error,
   );
@@ -100,7 +103,7 @@ function renderInspect(url) {
     if (pw.value !== pw2.value) return (error.textContent = '兩次輸入的密碼不一致');
     submit.disabled = true;
     try {
-      const { slug } = await api('/api/admin?action=create', { method: 'POST', body: { url, password: pw.value } });
+      const { slug } = await api('/api/admin?action=create', { method: 'POST', body: { url, password: pw.value, hint: hint.value } });
       box.replaceChildren(header, el('p', { class: 'success', text: '✓ 已建立分享網址' }));
       $('share-result').replaceChildren(shareBox(slug));
       $('share-step').hidden = false;
@@ -114,6 +117,12 @@ function renderInspect(url) {
     }
   });
   fill(box, header, warnings, form);
+}
+
+const HINT_NOTE = '密碼提示（選填）會公開顯示在登入頁，任何拿到網址的人都看得到，請不要直接寫出密碼。';
+
+function hintInput(value = '') {
+  return el('input', { type: 'text', placeholder: '密碼提示（選填）', maxlength: 100, autocomplete: 'off', value });
 }
 
 function shareBox(slug) {
@@ -187,6 +196,35 @@ function renderListCard(list) {
     }
   });
 
+  const hintText = el('p', { class: 'muted small' });
+  const renderHint = () => (hintText.textContent = list.hint ? `💡 密碼提示：${list.hint}` : '未設定密碼提示');
+  renderHint();
+  const hintForm = el('form', { class: 'stack pw-form', hidden: true });
+  const hintField = hintInput(list.hint);
+  hintForm.append(
+    hintField,
+    el('p', { class: 'hint muted', text: `${HINT_NOTE}清空後儲存即可移除提示。` }),
+    el('button', { type: 'submit', class: 'btn btn-primary btn-sm', text: '儲存提示' }),
+  );
+  hintForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const button = hintForm.querySelector('button');
+    button.disabled = true;
+    try {
+      const value = hintField.value.trim();
+      await api('/api/admin?action=update', { method: 'POST', body: { slug: list.slug, hint: value } });
+      list.hint = value;
+      hintField.value = value;
+      renderHint();
+      hintForm.hidden = true;
+      toast(value ? '密碼提示已更新' : '已移除密碼提示');
+    } catch (err) {
+      toast(err.message);
+    } finally {
+      button.disabled = false;
+    }
+  });
+
   const card = el(
     'li',
     { class: `card list-card${list.enabled ? '' : ' is-disabled'}` },
@@ -197,6 +235,7 @@ function renderListCard(list) {
       el('label', { class: 'switch' }, toggle, el('span', { class: 'switch-label', text: '啟用' })),
     ),
     shareBox(list.slug),
+    hintText,
     el(
       'div',
       { class: 'btn-row' },
@@ -206,7 +245,18 @@ function renderListCard(list) {
         text: '修改密碼',
         onClick: () => {
           pwForm.hidden = !pwForm.hidden;
+          hintForm.hidden = true;
           if (!pwForm.hidden) pwInput.focus();
+        },
+      }),
+      el('button', {
+        type: 'button',
+        class: 'btn btn-ghost btn-sm',
+        text: '密碼提示',
+        onClick: () => {
+          hintForm.hidden = !hintForm.hidden;
+          pwForm.hidden = true;
+          if (!hintForm.hidden) hintField.focus();
         },
       }),
       el('a', {
@@ -218,6 +268,7 @@ function renderListCard(list) {
       }),
     ),
     pwForm,
+    hintForm,
   );
   return card;
 }

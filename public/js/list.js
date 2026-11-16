@@ -67,6 +67,8 @@ function showLogin(name) {
     $('login-title').textContent = name;
     document.title = name;
   }
+  $('login-hint-text').textContent = state.hint || '';
+  $('login-hint').hidden = !state.hint;
   show('login');
   $('login-password').focus();
 }
@@ -647,6 +649,7 @@ async function init() {
   try {
     const info = await api(`/api/list?action=info&slug=${encodeURIComponent(slug)}`);
     state.name = info.name;
+    state.hint = info.hint || '';
     document.title = info.name;
     if (info.authorized) await loadItems();
     else showLogin(info.name);
