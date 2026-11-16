@@ -14,6 +14,18 @@ function normalizeHint(hint) {
   return value;
 }
 
+// 出發日：YYYY-MM-DD 或空字串（清除）
+function normalizeTripDate(value) {
+  const v = String(value ?? '').trim();
+  if (!v) return '';
+  // 用 UTC 解析再轉回字串比對，可擋下 2027-02-30 這類不存在的日期
+  const d = new Date(`${v}T00:00:00Z`);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(v) || Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== v) {
+    throw new HttpError(400, '出發日格式錯誤');
+  }
+  return v;
+}
+
 async function inspect(url) {
   const id = extractNotionId(url);
   if (!id) throw new HttpError(400, '網址中找不到 Notion ID，請貼上資料庫的完整網址');
@@ -71,9 +83,10 @@ export default handler(async (req, res) => {
   }
 
   if (req.method === 'POST' && action === 'create') {
-    const { url, password, hint } = await readJson(req);
+    const { url, password, hint, tripDate } = await readJson(req);
     validatePassword(password);
     const cleanHint = normalizeHint(hint);
+    const cleanTripDate = normalizeTripDate(tripDate);
     const info = await inspect(url);
     if (info.errors.length) throw new HttpError(422, '這個資料庫不符合購物清單模板', { errors: info.errors });
     if (info.existing) {
@@ -84,18 +97,20 @@ export default handler(async (req, res) => {
       databaseId: info.databaseId,
       hash: await hashPassword(password),
       hint: cleanHint,
+      tripDate: cleanTripDate,
     });
     return sendJson(res, 201, { slug, name: info.title });
   }
 
   if (req.method === 'POST' && action === 'update') {
-    const { slug, password, hint, enabled } = await readJson(req);
+    const { slug, password, hint, tripDate, enabled } = await readJson(req);
     const record = await findBySlug(slug);
     if (!record) throw new HttpError(404, '找不到這個清單');
     if (password !== undefined) validatePassword(password);
     await updateRecord(record.pageId, {
       hash: password !== undefined ? await hashPassword(password) : undefined,
       hint: hint !== undefined ? normalizeHint(hint) : undefined,
+      tripDate: tripDate !== undefined ? normalizeTripDate(tripDate) : undefined,
       enabled: typeof enabled === 'boolean' ? enabled : undefined,
     });
     return sendJson(res, 200, { ok: true });

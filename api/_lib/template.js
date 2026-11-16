@@ -96,10 +96,12 @@ export function toItem(page) {
 
 const LIMITS = { brand: 60, name: 200, shop: 200, note: 2000, source: 1000, qty: 999, price: 10_000_000 };
 
-// 驗證網站送來的新商品，轉成 Notion properties；只使用 schema 中存在的欄位與選項
-export function toCreateProperties(input, schema) {
+// 驗證網站送來的商品欄位，轉成 Notion properties；只使用 schema 中存在的欄位與選項。
+// partial（編輯既有商品）：只處理有送來的欄位，空值代表清空該欄位
+function toItemProperties(input, schema, { partial }) {
   const errors = [];
   const properties = {};
+  const sent = (key) => !partial || Object.hasOwn(input, key);
   const has = (key) => schema[FIELDS[key].prop]?.type === FIELDS[key].type;
   const optionNames = (key) => (has(key) ? schema[FIELDS[key].prop][FIELDS[key].type].options.map((o) => o.name) : []);
   const str = (value, key, label) => {
@@ -109,31 +111,40 @@ export function toCreateProperties(input, schema) {
   };
   const richText = (content) => ({ rich_text: content ? [{ type: 'text', text: { content } }] : [] });
 
-  const brand = str(input.brand, 'brand', '品牌').replace(/[【】]/g, '');
-  const name = str(input.name, 'name', '商品名稱');
-  if (!name) errors.push('請輸入商品名稱');
-  const fullName = brand ? `【${brand}】${name}` : name;
-  properties[FIELDS.name.prop] = { title: [{ type: 'text', text: { content: fullName } }] };
-  properties[FIELDS.status.prop] = { status: { name: STATUS_TODO } };
+  // 品牌存在商品名稱開頭的【】裡，兩者要一起送才能組回完整標題
+  if (partial && sent('name') !== sent('brand')) errors.push('品牌與商品名稱需要一起送出');
+  if (sent('name')) {
+    const brand = str(input.brand, 'brand', '品牌').replace(/[【】]/g, '');
+    const name = str(input.name, 'name', '商品名稱');
+    if (!name) errors.push('請輸入商品名稱');
+    const fullName = brand ? `【${brand}】${name}` : name;
+    properties[FIELDS.name.prop] = { title: [{ type: 'text', text: { content: fullName } }] };
+  }
 
   for (const [key, label] of [['category', '種類'], ['priority', '需要程度']]) {
+    if (!sent(key) || !has(key)) continue;
     const v = typeof input[key] === 'string' ? input[key] : '';
-    if (!v || !has(key)) continue;
-    if (!optionNames(key).includes(v)) errors.push(`${label}「${v}」不在選項中`);
+    if (!v) {
+      if (partial) properties[FIELDS[key].prop] = { select: null };
+    } else if (!optionNames(key).includes(v)) errors.push(`${label}「${v}」不在選項中`);
     else properties[FIELDS[key].prop] = { select: { name: v } };
   }
 
   for (const [key, label] of [['tags', 'Tag'], ['people', '需要的人']]) {
+    if (!sent(key) || !has(key)) continue;
     const values = Array.isArray(input[key]) ? [...new Set(input[key].map(String))] : [];
-    if (!values.length || !has(key)) continue;
     const invalid = values.filter((v) => !optionNames(key).includes(v));
     if (invalid.length) errors.push(`${label}「${invalid.join('、')}」不在選項中`);
-    else properties[FIELDS[key].prop] = { multi_select: values.map((name) => ({ name })) };
+    else if (values.length || partial) properties[FIELDS[key].prop] = { multi_select: values.map((name) => ({ name })) };
   }
 
   for (const [key, label, integer] of [['qty', '數量', true], ['price', '預估單價', false]]) {
+    if (!sent(key) || !has(key)) continue;
     const raw = input[key];
-    if (raw === null || raw === undefined || raw === '' || !has(key)) continue;
+    if (raw === null || raw === undefined || raw === '') {
+      if (partial) properties[FIELDS[key].prop] = { number: null };
+      continue;
+    }
     const n = Number(raw);
     if (!Number.isFinite(n) || n < 0 || n > LIMITS[key] || (integer && !Number.isInteger(n))) {
       errors.push(`${label}格式錯誤`);
@@ -142,17 +153,33 @@ export function toCreateProperties(input, schema) {
     }
   }
 
-  const shop = str(input.shop, 'shop', '商店');
-  if (shop && has('shop')) properties[FIELDS.shop.prop] = richText(shop);
-  const note = str(input.note, 'note', '備註');
-  if (note && has('note')) properties[FIELDS.note.prop] = richText(note);
-  const source = str(input.source, 'source', '推薦來源');
-  if (source && has('source')) {
-    if (!safeUrl(source)) errors.push('推薦來源必須是 http:// 或 https:// 開頭的網址');
+  for (const [key, label] of [['shop', '商店'], ['note', '備註']]) {
+    if (!sent(key) || !has(key)) continue;
+    const v = str(input[key], key, label);
+    if (v || partial) properties[FIELDS[key].prop] = richText(v);
+  }
+
+  if (sent('source') && has('source')) {
+    const source = str(input.source, 'source', '推薦來源');
+    if (!source) {
+      if (partial) properties[FIELDS.source.prop] = { url: null };
+    } else if (!safeUrl(source)) errors.push('推薦來源必須是 http:// 或 https:// 開頭的網址');
     else properties[FIELDS.source.prop] = { url: safeUrl(source) };
   }
 
   return { properties, errors };
+}
+
+// 新增商品：一律從「未購買」開始
+export function toCreateProperties(input, schema) {
+  const result = toItemProperties(input, schema, { partial: false });
+  result.properties[FIELDS.status.prop] = { status: { name: STATUS_TODO } };
+  return result;
+}
+
+// 出發前編輯既有商品；狀態、評分、照片不在這裡處理（各有專用的寫入方式）
+export function toEditProperties(input, schema) {
+  return toItemProperties(input, schema, { partial: true });
 }
 
 // 只允許 http(s) 連結，避免 javascript: 等危險網址被放進 <a href>
@@ -185,7 +212,7 @@ export function toAppendPhotoProperties(page, uploadId, filename) {
   };
 }
 
-// 既有商品只允許寫入「狀態」與「評分」（照片另由 toAppendPhotoProperties 附加）
+// 隨時都能寫入的「狀態」與「評分」（照片另由 toAppendPhotoProperties 附加）
 export function toUpdateProperties({ purchased, rating }) {
   const properties = {};
   if (typeof purchased === 'boolean') {
